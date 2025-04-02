@@ -5,13 +5,19 @@
   "main": "index.js",
   "scripts": {
     "start": "http-server . -p 8080",
-    "ngrok": "ngrok http 8080"
+    "bot": "node bot.js",
+    "dev": "concurrently \"npm run start\" \"npm run bot\"",
+    "ngrok": "ngrok http --config=ngrok.yml 8080",
+    "tunnel": "node run-ngrok.js"
   },
   "dependencies": {
-    "@solana/web3.js": "^1.87.6"
+    "@solana/web3.js": "^1.87.6",
+    "express": "^4.18.2",
+    "node-telegram-bot-api": "^0.66.0"
   },
   "devDependencies": {
+    "concurrently": "^8.2.2",
     "http-server": "^14.1.1",
-    "ngrok": "^4.3.1"
+    "ngrok": "^5.0.0-beta.2"
   }
-} 
+}

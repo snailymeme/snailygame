@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Snail to Riches</title>
+    <title>Улитка к Богатству</title>
     <link rel="stylesheet" href="css/style.css">
     <!-- Telegram Web App -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
@@ -11,34 +11,66 @@
     <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
 </head>
 <body>
+    <!-- Скрипт для вывода URL для отладки -->
+    <script>
+        console.log('Текущий URL страницы:', window.location.href);
+        console.log('Hostname:', window.location.hostname);
+    </script>
+
     <div id="app">
         <!-- Start Screen -->
         <div id="start-screen" class="screen">
-            <h1>Snail to Riches</h1>
+            <h1>Улитка к Богатству</h1>
             <div id="snail-selection">
-                <h2>Select Your Snail</h2>
+                <h2>Выберите свою улитку</h2>
                 <div class="snail-grid">
                     <!-- Snail buttons will be added dynamically -->
                 </div>
             </div>
             <div id="betting-section">
-                <input type="number" id="bet-amount" placeholder="Enter bet amount">
-                <button id="connect-wallet">Connect Wallet</button>
-                <button id="start-race">Start Race</button>
+                <div class="bet-container">
+                    <span class="bet-label">Ставка:</span>
+                    <input type="number" id="bet-amount" placeholder="Введите сумму ставки" value="10">
+                </div>
+                <div class="balance-info">
+                    <span>Баланс: <span id="balance-amount">100</span> монет</span>
+                </div>
+                <button id="connect-wallet">Подключить кошелек</button>
+                <button id="start-race" disabled>Начать гонку</button>
+            </div>
+        </div>
+
+        <!-- Loading Screen -->
+        <div id="loading-screen" class="screen hidden">
+            <h2>Загрузка гонки...</h2>
+            <div class="loading-container">
+                <div class="loading-snail">
+                    <div class="body"></div>
+                    <div class="shell"></div>
+                    <div class="antenna left"></div>
+                    <div class="antenna right"></div>
+                </div>
+                <div class="loading-text">Улитки готовятся к старту...</div>
             </div>
         </div>
 
         <!-- Race Screen -->
         <div id="race-screen" class="screen hidden">
+            <h2>Гонка в процессе!</h2>
             <canvas id="race-canvas"></canvas>
+            <div class="race-controls">
+                <button id="zoom-in">Приблизить</button>
+                <button id="zoom-out">Отдалить</button>
+                <button id="follow-snail">Следить за улиткой</button>
+            </div>
         </div>
 
         <!-- Results Screen -->
         <div id="results-screen" class="screen hidden">
-            <h2>Race Over!</h2>
+            <h2>Гонка завершена!</h2>
             <div id="result-message"></div>
             <div id="winnings-amount"></div>
-            <button id="play-again">Play Again</button>
+            <button id="play-again" class="primary-btn">Играть снова</button>
         </div>
     </div>
 
@@ -50,6 +82,6 @@
     <script src="js/patches/snakeSlugPatch.js"></script>
     <script src="js/patches/stubbornSlugPatch.js"></script>
     <script src="js/patches/defaultSlugPatch.js"></script>
-    <script src="js/main.js"></script>
+    <script type="module" src="js/main.js"></script>
 </body>
 </html> 
