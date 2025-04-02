@@ -1,0 +1,17 @@
+{
+  "name": "snail-to-riches",
+  "version": "1.0.0",
+  "description": "Telegram Web App game with racing snails",
+  "main": "index.js",
+  "scripts": {
+    "start": "http-server . -p 8080",
+    "ngrok": "ngrok http 8080"
+  },
+  "dependencies": {
+    "@solana/web3.js": "^1.87.6"
+  },
+  "devDependencies": {
+    "http-server": "^14.1.1",
+    "ngrok": "^4.3.1"
+  }
+} 

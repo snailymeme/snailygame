@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Snail to Riches</title>
+    <link rel="stylesheet" href="css/style.css">
+    <!-- Telegram Web App -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <!-- Solana Web3 -->
+    <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
+</head>
+<body>
+    <div id="app">
+        <!-- Start Screen -->
+        <div id="start-screen" class="screen">
+            <h1>Snail to Riches</h1>
+            <div id="snail-selection">
+                <h2>Select Your Snail</h2>
+                <div class="snail-grid">
+                    <!-- Snail buttons will be added dynamically -->
+                </div>
+            </div>
+            <div id="betting-section">
+                <input type="number" id="bet-amount" placeholder="Enter bet amount">
+                <button id="connect-wallet">Connect Wallet</button>
+                <button id="start-race">Start Race</button>
+            </div>
+        </div>
+
+        <!-- Race Screen -->
+        <div id="race-screen" class="screen hidden">
+            <canvas id="race-canvas"></canvas>
+        </div>
+
+        <!-- Results Screen -->
+        <div id="results-screen" class="screen hidden">
+            <h2>Race Over!</h2>
+            <div id="result-message"></div>
+            <div id="winnings-amount"></div>
+            <button id="play-again">Play Again</button>
+        </div>
+    </div>
+
+    <!-- Game Scripts -->
+    <script src="js/modules/patchLoader.js"></script>
+    <script src="js/modules/mazeGenerator.js"></script>
+    <script src="js/patches/racerSlugPatch.js"></script>
+    <script src="js/patches/explorerSlugPatch.js"></script>
+    <script src="js/patches/snakeSlugPatch.js"></script>
+    <script src="js/patches/stubbornSlugPatch.js"></script>
+    <script src="js/patches/defaultSlugPatch.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html> 
