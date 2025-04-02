@@ -4,11 +4,12 @@
   "description": "Telegram Web App game with racing snails",
   "main": "index.js",
   "scripts": {
-    "start": "http-server . -p 8080",
+    "start": "http-server . -p 3000",
     "bot": "node bot.js",
     "dev": "concurrently \"npm run start\" \"npm run bot\"",
-    "ngrok": "ngrok http --config=ngrok.yml 8080",
-    "tunnel": "node run-ngrok.js"
+    "ngrok": "node run-ngrok.js",
+    "tunnel": "node run-ngrok.js",
+    "app": "node start-app.js"
   },
   "dependencies": {
     "@solana/web3.js": "^1.87.6",

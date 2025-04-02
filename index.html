@@ -1,48 +1,162 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Улитка к Богатству</title>
+    <title>Snail to Riches</title>
     <link rel="stylesheet" href="css/style.css">
     <!-- Telegram Web App -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <!-- Solana Web3 -->
     <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
+
+    <!-- Добавим debug скрипт для отображения основной информации -->
+    <script>
+        // Проверить загрузку Telegram WebApp
+        window.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM loaded');
+            
+            // Проверяем наличие объекта Telegram
+            if (window.Telegram && window.Telegram.WebApp) {
+                console.log('Telegram WebApp available', window.Telegram.WebApp);
+                // Сигнализируем Telegram, что приложение готово
+                window.Telegram.WebApp.ready();
+                // Расширяем приложение на весь экран
+                window.Telegram.WebApp.expand();
+            } else {
+                console.error('Telegram WebApp not available');
+                alert('This game is designed to run through Telegram bot');
+            }
+            
+            // Показываем стартовый экран независимо от наличия Telegram API
+            var startScreen = document.getElementById('start-screen');
+            if (startScreen) {
+                startScreen.style.display = 'flex';
+            }
+        });
+    </script>
+    
+    <!-- Встроенные стили для быстрой загрузки -->
+    <style>
+        /* Базовые стили */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f2f5;
+            color: #333;
+        }
+        
+        /* Стили для экранов */
+        .screen {
+            display: none; /* По умолчанию скрыты */
+            flex-direction: column;
+            align-items: center;
+            gap: 1.5rem;
+            width: 100%;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        
+        /* Стартовый экран будет показан после загрузки DOM */
+        #start-screen {
+            text-align: center;
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+        
+        /* Стили для улиток */
+        .snail-grid {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+            margin: 20px 0;
+        }
+        
+        .snail-option {
+            background-color: white;
+            border-radius: 12px;
+            padding: 15px;
+            width: 120px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            cursor: pointer;
+            border: 2px solid transparent;
+        }
+        
+        .snail-option.selected {
+            border-color: #8367c7;
+            background-color: #f5f0ff;
+        }
+        
+        /* Стили для кнопок */
+        button {
+            background-color: #8367c7;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        
+        /* Стили для ввода ставки */
+        .bet-container {
+            margin: 20px 0;
+        }
+        
+        input {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+    </style>
 </head>
 <body>
     <!-- Скрипт для вывода URL для отладки -->
     <script>
-        console.log('Текущий URL страницы:', window.location.href);
+        console.log('Current page URL:', window.location.href);
         console.log('Hostname:', window.location.hostname);
     </script>
 
     <div id="app">
         <!-- Start Screen -->
-        <div id="start-screen" class="screen">
-            <h1>Улитка к Богатству</h1>
+        <div id="start-screen" class="screen" style="display: none;">
+            <h1>Snail to Riches</h1>
             <div id="snail-selection">
-                <h2>Выберите свою улитку</h2>
+                <h2>Choose your snail</h2>
                 <div class="snail-grid">
                     <!-- Snail buttons will be added dynamically -->
                 </div>
             </div>
             <div id="betting-section">
                 <div class="bet-container">
-                    <span class="bet-label">Ставка:</span>
-                    <input type="number" id="bet-amount" placeholder="Введите сумму ставки" value="10">
+                    <span class="bet-label">Bet:</span>
+                    <input type="number" id="bet-amount" placeholder="Enter your bet amount" value="10">
                 </div>
                 <div class="balance-info">
-                    <span>Баланс: <span id="balance-amount">100</span> монет</span>
+                    <span>Balance: <span id="balance-amount">100</span> coins</span>
                 </div>
-                <button id="connect-wallet">Подключить кошелек</button>
-                <button id="start-race" disabled>Начать гонку</button>
+                <button id="connect-wallet" style="display: none;">Connect Wallet</button>
+                <button id="start-race" class="buy-button">Start Race</button>
             </div>
         </div>
 
         <!-- Loading Screen -->
         <div id="loading-screen" class="screen hidden">
-            <h2>Загрузка гонки...</h2>
+            <h2>Loading race...</h2>
             <div class="loading-container">
                 <div class="loading-snail">
                     <div class="body"></div>
@@ -50,38 +164,48 @@
                     <div class="antenna left"></div>
                     <div class="antenna right"></div>
                 </div>
-                <div class="loading-text">Улитки готовятся к старту...</div>
+                <div class="loading-text">Snails are getting ready...</div>
             </div>
         </div>
 
         <!-- Race Screen -->
         <div id="race-screen" class="screen hidden">
-            <h2>Гонка в процессе!</h2>
+            <h2>Race in progress!</h2>
             <canvas id="race-canvas"></canvas>
             <div class="race-controls">
-                <button id="zoom-in">Приблизить</button>
-                <button id="zoom-out">Отдалить</button>
-                <button id="follow-snail">Следить за улиткой</button>
+                <button id="zoom-in">Zoom In</button>
+                <button id="zoom-out">Zoom Out</button>
+                <button id="follow-snail">Follow Snail</button>
             </div>
         </div>
 
         <!-- Results Screen -->
         <div id="results-screen" class="screen hidden">
-            <h2>Гонка завершена!</h2>
+            <h2>Race completed!</h2>
             <div id="result-message"></div>
             <div id="winnings-amount"></div>
-            <button id="play-again" class="primary-btn">Играть снова</button>
+            <button id="play-again" class="buy-button">Play Again</button>
         </div>
     </div>
 
-    <!-- Game Scripts -->
-    <script src="js/modules/patchLoader.js"></script>
+    <!-- Подключение модулей -->
+    <script src="js/modules/debug-helper.js"></script>
     <script src="js/modules/mazeGenerator.js"></script>
+    <script src="js/modules/slug.js"></script>
+    <script src="js/modules/slug-manager.js"></script>
+    <script src="js/modules/patchLoader.js"></script>
+    <script src="js/modules/wallet/solanaWallet.js"></script>
+    <script src="js/modules/race-renderer.js"></script>
+    
+    <!-- Подключение патчей улиток -->
+    <script src="js/patches/defaultSlugPatch.js"></script>
     <script src="js/patches/racerSlugPatch.js"></script>
     <script src="js/patches/explorerSlugPatch.js"></script>
     <script src="js/patches/snakeSlugPatch.js"></script>
     <script src="js/patches/stubbornSlugPatch.js"></script>
-    <script src="js/patches/defaultSlugPatch.js"></script>
-    <script type="module" src="js/main.js"></script>
+    
+    <!-- Модульные скрипты -->
+    <script src="js/modules/telegram-launcher.js"></script>
+    <script src="js/main.js"></script>
 </body>
 </html> 
