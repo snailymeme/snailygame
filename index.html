@@ -2,353 +2,449 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Snail to Riches</title>
+    
+    <!-- Предзагрузка изображений -->
+    <link rel="preload" href="images/snail_red.png" as="image">
+    <link rel="preload" href="images/snail_blue.png" as="image">
+    <link rel="preload" href="images/snail_green.png" as="image">
+    <link rel="preload" href="images/snail_lilac.png" as="image">
+    <link rel="preload" href="images/snail_yellow.png" as="image">
+    <link rel="preload" href="images/wall_texture.png" as="image">
+    <link rel="preload" href="images/start.png" as="image">
+    <link rel="preload" href="images/finish.png" as="image">
+    
+    <!-- Стили -->
     <link rel="stylesheet" href="css/style.css">
-    <!-- Telegram Web App -->
+    
+    <!-- Для интеграции с Telegram Web Apps -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <!-- Solana Web3 -->
-    <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
-
-    <!-- Улучшенный debug скрипт для отображения основной информации и обработки ошибок Telegram WebApp -->
+    
+    <!-- Модули для работы с лабиринтами и улитками -->
+    <script src="js/modules/mazeGenerator.js"></script>
+    <script src="js/modules/slug.js"></script>
+    <script src="js/modules/slug-manager.js"></script>
+    <script src="js/modules/game-cycle.js"></script>
+    
+    <!-- Для работы с Solana -->
+    <script src="js/modules/wallet.js"></script>
+    
     <script>
-        // Глобальный лог для диагностики
-        window.appLogs = [];
-        function logInfo(message, data) {
-            console.log(message, data || '');
-            window.appLogs.push({time: new Date().toISOString(), type: 'info', message, data});
-        }
-        
-        function logError(message, error) {
-            console.error(message, error || '');
-            window.appLogs.push({time: new Date().toISOString(), type: 'error', message, error: error ? (error.message || String(error)) : null});
-        }
-        
-        // Проверить загрузку Telegram WebApp
+        // Проверка наличия изображений при загрузке
         window.addEventListener('DOMContentLoaded', function() {
-            logInfo('DOM loaded');
+            // Проверяем доступность изображений напрямую
+            const testImages = [
+                'images/snail_red.png',
+                'images/wall_texture.png'
+            ];
             
-            setTimeout(function() {
-                try {
-                    // Проверяем наличие объекта Telegram
-                    if (window.Telegram && window.Telegram.WebApp) {
-                        logInfo('Telegram WebApp available', {
-                            version: window.Telegram.WebApp.version,
-                            platform: window.Telegram.WebApp.platform,
-                            viewportHeight: window.Telegram.WebApp.viewportHeight
-                        });
-                        
-                        try {
-                            // Сигнализируем Telegram, что приложение готово
-                            window.Telegram.WebApp.ready();
-                            logInfo('Telegram WebApp.ready() called');
-                            
-                            // Расширяем приложение на весь экран
-                            window.Telegram.WebApp.expand();
-                            logInfo('Telegram WebApp.expand() called');
-                        } catch (telegramMethodError) {
-                            logError('Error calling Telegram WebApp methods', telegramMethodError);
-                        }
-                    } else {
-                        logError('Telegram WebApp not available', { 
-                            telegramDefined: typeof window.Telegram !== 'undefined',
-                            webAppDefined: window.Telegram ? typeof window.Telegram.WebApp !== 'undefined' : false
-                        });
-                        
-                        // Для тестирования без Telegram предупреждаем пользователя
-                        console.warn('Running without Telegram WebApp, this game is designed for Telegram');
-                    }
-                    
-                    // Показываем стартовый экран независимо от наличия Telegram API
-                    var startScreen = document.getElementById('start-screen');
-                    if (startScreen) {
-                        startScreen.style.display = 'flex';
-                        logInfo('Start screen displayed');
-                    } else {
-                        logError('Start screen element not found');
-                    }
-                    
-                    // Добавляем кнопку для отображения логов
-                    addLogViewerButton();
-                    
-                } catch (initError) {
-                    logError('Critical error during initialization', initError);
-                    showErrorScreen('Ошибка инициализации приложения', initError);
-                }
-            }, 500); // Даем небольшую задержку для загрузки всех компонентов
-        });
-        
-        // Функция для отображения критических ошибок
-        function showErrorScreen(message, error) {
-            const errorDiv = document.createElement('div');
-            errorDiv.style.cssText = 'position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.9); color:white; padding:20px; z-index:9999; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;';
-            
-            const errorHeader = document.createElement('h2');
-            errorHeader.innerText = 'Ошибка загрузки';
-            errorHeader.style.color = '#ff5555';
-            
-            const errorMessage = document.createElement('p');
-            errorMessage.innerText = message;
-            
-            const errorDetails = document.createElement('pre');
-            errorDetails.innerText = error ? (error.stack || error.message || String(error)) : 'Неизвестная ошибка';
-            errorDetails.style.cssText = 'background:#333; padding:10px; border-radius:5px; margin:15px 0; max-width:90%; overflow:auto; text-align:left;';
-            
-            const reloadButton = document.createElement('button');
-            reloadButton.innerText = 'Перезагрузить';
-            reloadButton.style.cssText = 'background:#4285f4; color:white; border:none; padding:10px 20px; border-radius:5px; margin-top:15px; cursor:pointer;';
-            reloadButton.onclick = function() { window.location.reload(); };
-            
-            errorDiv.appendChild(errorHeader);
-            errorDiv.appendChild(errorMessage);
-            errorDiv.appendChild(errorDetails);
-            errorDiv.appendChild(reloadButton);
-            
-            document.body.appendChild(errorDiv);
-        }
-        
-        // Кнопка для просмотра логов
-        function addLogViewerButton() {
-            const logButton = document.createElement('button');
-            logButton.innerText = 'Logs';
-            logButton.style.cssText = 'position:fixed; bottom:10px; left:10px; z-index:9998; background:rgba(0,0,0,0.5); color:white; border:none; border-radius:4px; padding:5px 10px; font-size:12px;';
-            
-            logButton.onclick = function() {
-                showLogViewer();
-            };
-            
-            document.body.appendChild(logButton);
-        }
-        
-        // Просмотрщик логов
-        function showLogViewer() {
-            const logViewer = document.createElement('div');
-            logViewer.style.cssText = 'position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.9); color:white; padding:15px; z-index:9999; overflow:auto;';
-            
-            const closeButton = document.createElement('button');
-            closeButton.innerText = 'Close';
-            closeButton.style.cssText = 'position:absolute; top:10px; right:10px; background:#f44336; color:white; border:none; border-radius:4px; padding:5px 10px;';
-            closeButton.onclick = function() {
-                logViewer.remove();
-            };
-            
-            const logContent = document.createElement('pre');
-            logContent.style.cssText = 'margin-top:40px; white-space:pre-wrap; font-family:monospace; font-size:12px;';
-            
-            let logText = '=== APPLICATION LOGS ===\n\n';
-            window.appLogs.forEach(function(log) {
-                const color = log.type === 'error' ? '#ff5555' : '#4CAF50';
-                logText += `<span style="color:${color}">[${log.time}] [${log.type.toUpperCase()}] ${log.message}</span>\n`;
-                if (log.data) {
-                    logText += `<span style="color:#aaa; margin-left:20px;">${JSON.stringify(log.data, null, 2)}</span>\n`;
-                }
-                if (log.error) {
-                    logText += `<span style="color:#ff9999; margin-left:20px;">${log.error}</span>\n`;
-                }
-                logText += '\n';
+            testImages.forEach(src => {
+                const img = new Image();
+                img.onload = () => console.log(`Тест: изображение ${src} доступно`);
+                img.onerror = () => console.error(`Тест: изображение ${src} НЕДОСТУПНО`);
+                img.src = src;
             });
-            
-            // Добавляем информацию о системе
-            logText += '\n=== SYSTEM INFO ===\n\n';
-            logText += `User Agent: ${navigator.userAgent}\n`;
-            logText += `Window Size: ${window.innerWidth}x${window.innerHeight}\n`;
-            logText += `Device Pixel Ratio: ${window.devicePixelRatio}\n`;
-            logText += `URL: ${window.location.href}\n`;
-            
-            // Проверяем наличие Telegram WebApp и выводим информацию
-            if (window.Telegram && window.Telegram.WebApp) {
-                logText += '\n=== TELEGRAM WEBAPP INFO ===\n\n';
-                const tg = window.Telegram.WebApp;
-                logText += `Version: ${tg.version}\n`;
-                logText += `Platform: ${tg.platform}\n`;
-                logText += `Color Scheme: ${tg.colorScheme}\n`;
-                logText += `Viewport Height: ${tg.viewportHeight}\n`;
-                logText += `Viewport Stable Height: ${tg.viewportStableHeight}\n`;
-                
-                if (tg.initDataUnsafe) {
-                    logText += `Start Param: ${tg.initDataUnsafe.start_param || 'None'}\n`;
-                    logText += `User: ${tg.initDataUnsafe.user ? JSON.stringify(tg.initDataUnsafe.user) : 'None'}\n`;
-                }
-            }
-            
-            logContent.innerHTML = logText;
-            
-            logViewer.appendChild(closeButton);
-            logViewer.appendChild(logContent);
-            document.body.appendChild(logViewer);
-        }
+        });
     </script>
     
-    <!-- Встроенные стили для быстрой загрузки -->
+    <!-- Отладочный скрипт -->
+    <script src="js/modules/debug-helper.js" type="module"></script>
+    <!-- Styles -->
     <style>
-        /* Базовые стили */
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-family: 'Roboto', Arial, sans-serif;
             margin: 0;
             padding: 0;
-            background-color: #f0f2f5;
-            color: #333;
+            background-color: #212121;
+            color: #fff;
+            overflow-x: hidden;
         }
         
-        /* Стили для экранов */
         .screen {
-            display: none; /* По умолчанию скрыты */
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: none;
             flex-direction: column;
             align-items: center;
-            gap: 1.5rem;
-            width: 100%;
             padding: 20px;
             box-sizing: border-box;
+            overflow-y: auto;
+            background-color: #212121;
         }
         
-        /* Стартовый экран будет показан после загрузки DOM */
-        #start-screen {
+        .screen h1 {
+            margin-top: 10px;
+            font-size: 28px;
+            color: #FFD700;
+            text-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
+        }
+        
+        .snail-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 15px;
+            width: 100%;
+            max-width: 600px;
+            margin: 20px 0;
+        }
+        
+        .snail-option {
+            background-color: #333;
+            border-radius: 10px;
+            padding: 10px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            border: 2px solid transparent;
+        }
+        
+        .snail-option:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 10px rgba(0, 0, 0, 0.3);
+        }
+        
+        .snail-option.selected {
+            border-color: #FFD700;
+            box-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+        }
+        
+        .snail-color {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            margin: 0 auto 10px;
+        }
+        
+        .snail-info h3 {
+            margin: 0 0 5px;
+            font-size: 16px;
             text-align: center;
+        }
+        
+        .snail-info p {
+            margin: 0;
+            font-size: 12px;
+            color: #ccc;
+            text-align: center;
+        }
+        
+        .buy-button {
+            background-color: #FFD700;
+            color: #000;
+            border: none;
+            border-radius: 20px;
+            padding: 10px 20px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: background-color 0.2s;
+        }
+        
+        .buy-button:hover {
+            background-color: #FFC107;
+        }
+        
+        .bet-container {
+            display: flex;
+            align-items: center;
+            margin: 20px 0;
+        }
+        
+        .bet-label {
+            margin-right: 10px;
+            font-size: 16px;
+        }
+        
+        #bet-amount {
+            background-color: #333;
+            color: #fff;
+            border: 1px solid #555;
+            padding: 8px;
+            border-radius: 5px;
+            width: 100px;
+            font-size: 16px;
+        }
+        
+        .balance-info {
+            font-size: 14px;
+            color: #BBB;
+            margin: 10px 0;
+        }
+        
+        /* Стили для игровых экранов */
+        #race-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #111;
+            overflow: hidden;
+        }
+        
+        .race-info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 14px;
+            z-index: 10;
+        }
+        
+        /* Результаты гонки */
+        #results-screen {
+            background-color: rgba(0, 0, 0, 0.9);
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+        
+        .result-content {
+            background-color: #333;
+            padding: 20px;
+            border-radius: 15px;
+            max-width: 400px;
+            width: 100%;
+        }
+        
+        .result-win {
+            color: #4CAF50;
+        }
+        
+        .result-lose {
+            color: #F44336;
+        }
+        
+        .result-amount {
+            font-size: 24px;
+            margin: 10px 0;
         }
         
         .hidden {
             display: none !important;
         }
         
-        /* Стили для улиток */
-        .snail-grid {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            gap: 10px;
-            margin: 20px 0;
+        /* Адаптивность */
+        @media (max-width: 480px) {
+            .snail-grid {
+                grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            }
+            
+            .screen h1 {
+                font-size: 24px;
+            }
         }
         
-        .snail-option {
-            background-color: white;
-            border-radius: 12px;
-            padding: 15px;
-            width: 120px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            cursor: pointer;
-            border: 2px solid transparent;
+        /* Анимации */
+        @keyframes glow {
+            0% { box-shadow: 0 0 5px gold; }
+            50% { box-shadow: 0 0 20px gold, 0 0 30px yellow; }
+            100% { box-shadow: 0 0 5px gold; }
         }
         
-        .snail-option.selected {
-            border-color: #8367c7;
-            background-color: #f5f0ff;
+        .glow-effect {
+            animation: glow 2s infinite;
         }
         
-        /* Стили для кнопок */
-        button {
-            background-color: #8367c7;
-            color: white;
+        /* Debug panel на случай ошибок загрузки */
+        #debug-container {
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            z-index: 9999;
+        }
+        
+        #debug-button {
+            background-color: rgba(0, 0, 0, 0.7);
+            color: #fff;
             border: none;
-            border-radius: 8px;
-            padding: 10px 20px;
-            font-size: 16px;
+            border-radius: 30px;
+            width: 40px;
+            height: 40px;
+            font-size: 24px;
             cursor: pointer;
-            margin-top: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
         }
         
-        button:disabled {
-            background-color: #ccc;
-            cursor: not-allowed;
-        }
-        
-        /* Стили для ввода ставки */
-        .bet-container {
-            margin: 20px 0;
-        }
-        
-        input {
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            font-size: 16px;
+        #debug-panel {
+            display: none;
+            position: fixed;
+            bottom: 60px;
+            right: 10px;
+            width: 300px;
+            max-height: 400px;
+            overflow-y: auto;
+            background-color: rgba(0, 0, 0, 0.9);
+            color: #fff;
+            padding: 15px;
+            border-radius: 10px;
+            font-family: monospace;
+            font-size: 12px;
         }
     </style>
 </head>
 <body>
-    <!-- Скрипт для вывода URL для отладки -->
-    <script>
-        console.log('Current page URL:', window.location.href);
-        console.log('Hostname:', window.location.hostname);
-    </script>
-
     <div id="app">
-        <!-- Start Screen -->
-        <div id="start-screen" class="screen" style="display: none;">
+        <!-- Стартовый экран с выбором улитки -->
+        <div id="start-screen" class="screen" style="display:flex;">
             <h1>Snail to Riches</h1>
             <div id="snail-selection">
                 <h2>Choose your snail</h2>
                 <div class="snail-grid">
-                    <!-- Snail buttons will be added dynamically -->
+                    <!-- Здесь будут варианты улиток -->
                 </div>
             </div>
             <div id="betting-section">
                 <div class="bet-container">
                     <span class="bet-label">Bet:</span>
-                    <input type="number" id="bet-amount" placeholder="Enter your bet amount" value="10">
+                    <input type="number" id="bet-amount" placeholder="Enter bet amount" value="10">
                 </div>
                 <div class="balance-info">
                     <span>Balance: <span id="balance-amount">100</span> coins</span>
                 </div>
-                <button id="connect-wallet" style="display: none;">Connect Wallet</button>
                 <button id="start-race" class="buy-button">Start Race</button>
             </div>
         </div>
-
-        <!-- Loading Screen -->
-        <div id="loading-screen" class="screen hidden">
-            <h2>Loading race...</h2>
-            <div class="loading-container">
-                <div class="loading-snail">
-                    <div class="body"></div>
-                    <div class="shell"></div>
-                    <div class="antenna left"></div>
-                    <div class="antenna right"></div>
-                </div>
-                <div class="loading-text">Snails are getting ready...</div>
+        
+        <!-- Экран гонки -->
+        <div id="race-container" class="hidden" style="position:fixed; top:0; left:0; width:100%; height:100%; background-color:#111; z-index:10;">
+            <canvas id="race-canvas" style="width:100%; height:100%;"></canvas>
+            <div id="race-info" class="race-info">
+                <div id="race-timer">Время: 0.0 сек</div>
+                <div id="selected-snail-info">Ваша улитка: Не выбрана</div>
             </div>
         </div>
-
-        <!-- Race Screen -->
-        <div id="race-screen" class="screen hidden">
-            <h2>Race in progress!</h2>
-            <canvas id="race-canvas"></canvas>
-            <div class="race-controls">
-                <button id="zoom-in">Zoom In</button>
-                <button id="zoom-out">Zoom Out</button>
-                <button id="follow-snail">Follow Snail</button>
-            </div>
-        </div>
-
-        <!-- Results Screen -->
+        
+        <!-- Экран результатов -->
         <div id="results-screen" class="screen hidden">
-            <h2>Race completed!</h2>
-            <div id="result-message"></div>
-            <div id="winnings-amount"></div>
-            <button id="play-again" class="buy-button">Play Again</button>
+            <div class="result-content">
+                <h2 id="result-title">Race Results</h2>
+                <p id="result-message">Your snail finished the race!</p>
+                <div id="result-amount" class="result-amount">+0 coins</div>
+                <button id="play-again" class="buy-button">Race Again</button>
+            </div>
         </div>
     </div>
-
-    <!-- Подключение модулей -->
-    <script src="js/modules/debug-helper.js"></script>
-    <script src="js/modules/mazeGenerator.js"></script>
-    <script src="js/modules/slug.js"></script>
-    <script src="js/modules/slug-manager.js"></script>
-    <script src="js/modules/patchLoader.js"></script>
-    <script src="js/modules/wallet/solanaWallet.js"></script>
-    <script src="js/modules/race-renderer.js"></script>
     
-    <!-- Подключение патчей улиток -->
-    <script src="js/patches/defaultSlugPatch.js"></script>
-    <script src="js/patches/racerSlugPatch.js"></script>
-    <script src="js/patches/explorerSlugPatch.js"></script>
-    <script src="js/patches/snakeSlugPatch.js"></script>
-    <script src="js/patches/stubbornSlugPatch.js"></script>
+    <!-- Debug button for development -->
+    <div id="debug-container">
+        <button id="debug-button" onclick="toggleDebugPanel()" style="background-color: rgba(255, 0, 0, 0.7); font-weight: bold;">🛠️</button>
+        <div id="debug-panel">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <h3 style="margin: 0;">Отладочная информация</h3>
+                <button onclick="toggleDebugPanel()" style="background: #f44336; color: white; border: none; border-radius: 50%; width: 25px; height: 25px; font-size: 14px; cursor: pointer;">✕</button>
+            </div>
+            <div>
+                <button onclick="showErrorInfo()" style="background: #ff9800; color: white; border: none; padding: 5px 10px; margin: 5px 0; border-radius: 5px; cursor: pointer; width: 100%;">Показать ошибки</button>
+                <button onclick="checkModulesLoaded()" style="background: #4caf50; color: white; border: none; padding: 5px 10px; margin: 5px 0; border-radius: 5px; cursor: pointer; width: 100%;">Проверить модули</button>
+                <button onclick="testCanvasCreation()" style="background: #2196f3; color: white; border: none; padding: 5px 10px; margin: 5px 0; border-radius: 5px; cursor: pointer; width: 100%;">Тест Canvas</button>
+            </div>
+            <hr style="border-color: #555; margin: 10px 0;">
+            <div id="debug-logs"></div>
+            <div id="error-list" style="margin-top: 10px; color: #ff5252;"></div>
+        </div>
+    </div>
     
-    <!-- Модульные скрипты -->
-    <script src="js/modules/telegram-launcher.js"></script>
+    <!-- Game Scripts -->
     <script src="js/main.js"></script>
+    <script>
+        // Toggle debug panel
+        function toggleDebugPanel() {
+            const panel = document.getElementById('debug-panel');
+            if (panel.style.display === 'none' || !panel.style.display) {
+                panel.style.display = 'block';
+                // Если есть функция для отображения отладочной информации
+                if (typeof showDebugInfo === 'function') {
+                    showDebugInfo();
+                }
+            } else {
+                panel.style.display = 'none';
+            }
+        }
+        
+        // Показать информацию об ошибках
+        function showErrorInfo() {
+            const errorList = document.getElementById('error-list');
+            if (!errorList) return;
+            
+            // Проверяем, есть ли сохраненная информация об ошибках
+            if (window.debugInfo && window.debugInfo.errors) {
+                let html = '<h4>Последние ошибки:</h4>';
+                if (window.debugInfo.errors.length === 0) {
+                    html += '<p>Ошибок не обнаружено</p>';
+                } else {
+                    html += '<ul>';
+                    window.debugInfo.errors.slice(-5).forEach(err => {
+                        html += `<li>${err.message || 'Неизвестная ошибка'}</li>`;
+                    });
+                    html += '</ul>';
+                }
+                errorList.innerHTML = html;
+            } else {
+                errorList.innerHTML = '<p>Отладочная информация недоступна</p>';
+            }
+        }
+        
+        // Проверка загрузки модулей
+        function checkModulesLoaded() {
+            const errorList = document.getElementById('error-list');
+            if (!errorList) return;
+            
+            const modules = {
+                'Maze': typeof Maze === 'function',
+                'SlugManager': typeof SlugManager === 'function',
+                'GameCycle': typeof GameCycle === 'function',
+                'Slug': typeof Slug === 'function'
+            };
+            
+            let html = '<h4>Статус модулей:</h4><ul>';
+            for (const [name, loaded] of Object.entries(modules)) {
+                html += `<li>${name}: <span style="color:${loaded ? '#4caf50' : '#f44336'}">${loaded ? 'Загружен' : 'НЕ загружен'}</span></li>`;
+            }
+            html += '</ul>';
+            
+            errorList.innerHTML = html;
+        }
+        
+        // Тестирование создания canvas
+        function testCanvasCreation() {
+            const errorList = document.getElementById('error-list');
+            if (!errorList) return;
+            
+            try {
+                // Проверяем возможность создания canvas
+                const testCanvas = document.createElement('canvas');
+                const ctx = testCanvas.getContext('2d');
+                
+                let html = '<h4>Тест Canvas:</h4>';
+                
+                if (ctx) {
+                    html += '<p style="color:#4caf50">✓ Canvas успешно создан</p>';
+                    
+                    // Проверяем основные методы
+                    const methods = ['drawImage', 'fillRect', 'beginPath', 'arc', 'fill'];
+                    html += '<ul>';
+                    methods.forEach(method => {
+                        const available = typeof ctx[method] === 'function';
+                        html += `<li>${method}: <span style="color:${available ? '#4caf50' : '#f44336'}">${available ? 'Доступен' : 'НЕ доступен'}</span></li>`;
+                    });
+                    html += '</ul>';
+                } else {
+                    html += '<p style="color:#f44336">✗ Не удалось получить 2D контекст</p>';
+                }
+                
+                errorList.innerHTML = html;
+            } catch (error) {
+                errorList.innerHTML = `<h4>Тест Canvas:</h4><p style="color:#f44336">Ошибка: ${error.message}</p>`;
+            }
+        }
+    </script>
 </body>
 </html> 

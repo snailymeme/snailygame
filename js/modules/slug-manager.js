@@ -22,8 +22,17 @@ class SlugManager {
         this.winner = null;
         this.lastUpdateTime = 0;
         
+        // Для отслеживания всех финишировавших улиток
+        this.finishedSlugs = [];
+        
         // Callback при завершении гонки
         this.onRaceFinished = null;
+        
+        // Привязываем метод к контексту
+        this._handleSlugFinishedEvent = this._handleSlugFinishedEvent.bind(this);
+        
+        // Добавляем слушатель события
+        window.addEventListener('slug-finished', this._handleSlugFinishedEvent);
     }
     
     /**
@@ -81,9 +90,9 @@ class SlugManager {
                 return;
             }
             
-            // Запускаем движение всех улиток
+            // Запускаем движение всех улиток с задержкой
             let startedCount = 0;
-            this.slugs.forEach(slug => {
+            this.slugs.forEach((slug, index) => {
                 try {
                     if (!slug) {
                         console.warn("Обнаружена пустая улитка в списке!");
@@ -95,7 +104,16 @@ class SlugManager {
                         return;
                     }
                     
-                    slug.startMoving();
+                    // Используем задержку, если она установлена
+                    const delay = slug.startDelay || index * 100;
+                    
+                    setTimeout(() => {
+                        if (this.isRaceStarted && !this.isRaceFinished) {
+                            slug.startMoving();
+                            console.log(`Улитка ${slug.type} начала движение`);
+                        }
+                    }, delay);
+                    
                     startedCount++;
                 } catch (error) {
                     const errorInfo = {
@@ -141,12 +159,33 @@ class SlugManager {
     }
     
     /**
-     * Обрабатывает финиш улитки
-     * @param {Slug} slug - Финишировавшая улитка
+     * Обрабатывает событие финиша улитки
+     * @param {CustomEvent} event - Событие финиша
      * @private
      */
-    _handleSlugFinish(slug) {
-        if (this.isRaceFinished) return;
+    _handleSlugFinishedEvent(event) {
+        const { slug, time } = event.detail;
+        
+        if (slug) {
+            this._handleSlugFinish(slug, time);
+        }
+    }
+    
+    /**
+     * Обрабатывает финиш улитки
+     * @param {Slug} slug - Финишировавшая улитка
+     * @param {number} [time] - Время финиша
+     * @private
+     */
+    _handleSlugFinish(slug, time = performance.now()) {
+        // Если гонка уже завершена, только добавляем в список финишировавших
+        if (this.isRaceFinished) {
+            this._addFinishedSlug(slug, time);
+            return;
+        }
+        
+        // Добавляем в список финишировавших
+        this._addFinishedSlug(slug, time);
         
         // Если это первая улитка, пересекшая финиш, то она победитель
         if (!this.winner) {
@@ -154,21 +193,57 @@ class SlugManager {
             slug.isWinner = true;
             this.isRaceFinished = true;
             
-            console.log(`Победитель гонки: ${slug.type}`);
+            console.log(`Победитель гонки: ${slug.type} (${slug.colorName || 'unknown'})`);
             
             // Вызываем callback при наличии
             if (typeof this.onRaceFinished === 'function') {
                 this.onRaceFinished(slug);
             }
             
+            // Уведомляем все улитки о завершении гонки
+            this.slugs.forEach(s => {
+                if (s !== slug && !s.isFinished) {
+                    // Замедляем остальных для лучшего визуального эффекта
+                    s.speed = s.speed * 0.5;
+                }
+            });
+            
             // Останавливаем остальных улиток через небольшую задержку
             setTimeout(() => {
                 this.slugs.forEach(s => {
-                    if (s !== slug) {
+                    if (s !== slug && !s.isFinished) {
                         s.stopMoving();
                     }
                 });
-            }, 500);
+            }, 2000);
+        }
+    }
+    
+    /**
+     * Добавляет улитку в список финишировавших
+     * @param {Slug} slug - Финишировавшая улитка
+     * @param {number} time - Время финиша
+     * @private
+     */
+    _addFinishedSlug(slug, time) {
+        // Проверяем, не добавлена ли улитка уже
+        if (!this.finishedSlugs.find(fs => fs.slug === slug)) {
+            this.finishedSlugs.push({
+                slug,
+                time,
+                position: this.finishedSlugs.length + 1
+            });
+            
+            // Сортируем по времени
+            this.finishedSlugs.sort((a, b) => a.time - b.time);
+            
+            // Обновляем позиции
+            this.finishedSlugs.forEach((fs, index) => {
+                fs.position = index + 1;
+                fs.slug.finishPosition = index + 1;
+            });
+            
+            console.log(`Улитка ${slug.type} финишировала на месте ${this.finishedSlugs.find(fs => fs.slug === slug).position}`);
         }
     }
     
@@ -223,22 +298,31 @@ class SlugManager {
     
     /**
      * Отрисовывает всех улиток
-     * @param {CanvasRenderingContext2D} [ctx] - Контекст рендеринга (необязательно)
+     * @param {CanvasRenderingContext2D} ctx - Контекст для рисования
      */
     render(ctx) {
-        const context = ctx || this.ctx;
-        if (!context) return;
+        if (!ctx) {
+            ctx = this.ctx; // Используем собственный контекст, если не передан
+        }
+        
+        if (!ctx || !this.maze) return;
+        
+        // Вычисляем размер ячейки в пикселях
+        const cellSize = Math.min(
+            ctx.canvas.width / this.maze.width,
+            ctx.canvas.height / this.maze.height
+        );
         
         // Отрисовываем каждую улитку
-        for (const slug of this.slugs) {
+        this.slugs.forEach(slug => {
             try {
                 if (slug && typeof slug.render === 'function') {
-                    slug.render();
+                    slug.render(ctx, cellSize);
                 }
             } catch (error) {
                 console.error(`Ошибка при отрисовке улитки ${slug.type}:`, error);
             }
-        }
+        });
     }
     
     /**
@@ -271,6 +355,9 @@ class SlugManager {
         });
         this.slugs = [];
         this.onRaceFinished = null;
+        
+        // Удаляем слушатель события
+        window.removeEventListener('slug-finished', this._handleSlugFinishedEvent);
     }
     
     /**
@@ -313,6 +400,71 @@ class SlugManager {
             if (typeof this.onRaceFinished === 'function') {
                 this.onRaceFinished(null);
             }
+        }
+    }
+    
+    /**
+     * Устанавливает новый лабиринт для гонки
+     * @param {Maze} maze - Объект лабиринта
+     */
+    setMaze(maze) {
+        if (!maze) {
+            console.error('SlugManager: нельзя установить пустой лабиринт');
+            return;
+        }
+        
+        this.maze = maze;
+        console.log('SlugManager: установлен новый лабиринт', maze.width, 'x', maze.height);
+    }
+    
+    /**
+     * Подготавливает улиток к гонке
+     */
+    prepareRace() {
+        if (!this.maze) {
+            console.error('SlugManager: нельзя подготовить гонку без лабиринта');
+            return false;
+        }
+        
+        try {
+            // Очищаем предыдущий список улиток
+            this.slugs = [];
+            this.finishedSlugs = [];
+            this.winner = null;
+            this.isRaceStarted = false;
+            this.isRaceFinished = false;
+            
+            // Получаем точки старта и финиша из лабиринта
+            const startPoint = this.maze.startPoint;
+            const finishPoint = this.maze.finishPoint;
+            
+            // Создаем улитки с разными типами поведения
+            const slugTypes = ['racer', 'explorer', 'snake', 'stubborn', 'deadender'];
+            
+            slugTypes.forEach((type, index) => {
+                // Создаем улитку с соответствующим типом
+                const slug = new Slug({
+                    type: type,
+                    startPosition: { x: startPoint.x, y: startPoint.y },
+                    finishPosition: { x: finishPoint.x, y: finishPoint.y },
+                    maze: this.maze,
+                    color: window.SNAIL_TYPES && window.SNAIL_TYPES[type] ? window.SNAIL_TYPES[type].color : '#FFFFFF',
+                    canvas: this.canvas,
+                    image: window.imageCache ? window.imageCache[`images/snail_${type === 'deadender' ? 'yellow' : type === 'racer' ? 'red' : type === 'explorer' ? 'green' : type === 'snake' ? 'blue' : 'lilac'}.png`] : null
+                });
+                
+                // Устанавливаем небольшую задержку перед стартом для каждой улитки
+                slug.startDelay = index * 200;
+                
+                // Добавляем улитку в список
+                this.slugs.push(slug);
+            });
+            
+            console.log(`SlugManager: подготовлено ${this.slugs.length} улиток для гонки`);
+            return true;
+        } catch (error) {
+            console.error('Ошибка при подготовке улиток к гонке:', error);
+            return false;
         }
     }
 }

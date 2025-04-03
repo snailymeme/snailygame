@@ -403,75 +403,77 @@ class Slug {
     }
     
     /**
-     * Отрисовывает улитку и ее путь
+     * Отрисовывает улитку на канвасе
+     * @param {CanvasRenderingContext2D} ctx - Контекст для рисования
+     * @param {number} cellSize - Размер ячейки в пикселях
      */
-    render() {
-        if (!this.ctx) return;
-        
-        // Получаем размер клетки из лабиринта
-        const cellSize = 40; // Значение по умолчанию, если не задано в лабиринте
-        
-        // Вычисляем экранные координаты
-        const screenX = this.position.x * cellSize + cellSize / 2;
-        const screenY = this.position.y * cellSize + cellSize / 2;
-        
-        // Сохраняем текущий контекст
-        this.ctx.save();
-        
-        // Перемещаем и поворачиваем контекст для отрисовки улитки
-        this.ctx.translate(screenX, screenY);
-        this.ctx.rotate(this.rotation);
-        
-        // Отрисовываем улитку (изображение или круг с цветом)
-        const slugSize = cellSize * this.size;
-        
-        // Проверяем наличие изображения и его готовность
-        if (this.image && (this.image.complete || this.image.width > 0)) {
-            try {
-                // Отрисовываем изображение улитки
-                this.ctx.drawImage(
-                    this.image,
-                    -slugSize / 2,
-                    -slugSize / 2,
-                    slugSize,
-                    slugSize
-                );
-            } catch (error) {
-                console.warn(`Ошибка отрисовки изображения улитки ${this.type}:`, error);
-                // Если ошибка при отрисовке, рисуем заглушку
-                this.drawFallbackSlug(slugSize);
-            }
-        } else {
-            // Отрисовываем заглушку улитки
-            this.drawFallbackSlug(slugSize);
+    render(ctx, cellSize) {
+        if (!ctx) {
+            if (!this.canvas || !this.ctx) return;
+            ctx = this.ctx;
         }
         
-        // Восстанавливаем контекст
-        this.ctx.restore();
+        // Позиция улитки в пикселях
+        const x = this.position.x * cellSize + cellSize / 2;
+        const y = this.position.y * cellSize + cellSize / 2;
         
-        // Добавим индикатор "раздумья" если улитка думает
-        if (this.thinking) {
-            this.ctx.save();
-            this.ctx.translate(screenX, screenY - slugSize / 2 - 10);
+        // Размер улитки
+        const slugSize = cellSize * this.size;
+        
+        // Сохраняем состояние контекста
+        ctx.save();
+        
+        // Перемещаем к позиции улитки
+        ctx.translate(x, y);
+        
+        // Поворачиваем по направлению движения
+        ctx.rotate(this.rotation);
+        
+        // Рисуем улитку
+        if (this.image && this.image.complete) {
+            // Если есть изображение, рисуем его
+            ctx.drawImage(
+                this.image,
+                -slugSize / 2,
+                -slugSize / 2,
+                slugSize,
+                slugSize
+            );
+        } else {
+            // Иначе рисуем цветной круг
+            ctx.fillStyle = this.color;
+            ctx.beginPath();
+            ctx.arc(0, 0, slugSize / 2, 0, Math.PI * 2);
+            ctx.fill();
             
-            // Рисуем пузырь мысли
-            this.ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-            this.ctx.beginPath();
-            this.ctx.arc(0, 0, 15, 0, Math.PI * 2);
-            this.ctx.fill();
+            // Добавляем "глазки"
+            ctx.fillStyle = '#FFFFFF';
+            ctx.beginPath();
+            ctx.arc(slugSize / 4, -slugSize / 6, slugSize / 10, 0, Math.PI * 2);
+            ctx.fill();
             
-            // Рисуем точки "..."
-            this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-            const dotPhase = Math.floor((this.thinkingTimer / 500) % 3);
-            
-            for (let i = 0; i < 3; i++) {
-                this.ctx.globalAlpha = i <= dotPhase ? 1 : 0.3;
-                this.ctx.beginPath();
-                this.ctx.arc(-10 + i * 10, 0, 3, 0, Math.PI * 2);
-                this.ctx.fill();
-            }
-            
-            this.ctx.restore();
+            ctx.beginPath();
+            ctx.arc(slugSize / 4, slugSize / 6, slugSize / 10, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        
+        // Если это победитель, рисуем корону или другой индикатор
+        if (this.isWinner) {
+            ctx.fillStyle = '#FFD700';
+            ctx.beginPath();
+            ctx.moveTo(-slugSize / 4, -slugSize / 2 - 10);
+            ctx.lineTo(0, -slugSize / 2 - 20);
+            ctx.lineTo(slugSize / 4, -slugSize / 2 - 10);
+            ctx.closePath();
+            ctx.fill();
+        }
+        
+        // Восстанавливаем состояние контекста
+        ctx.restore();
+        
+        // Отладочная информация (если включена)
+        if (window.DEBUG_MODE) {
+            this._renderDebugInfo(ctx, x, y, cellSize);
         }
     }
     
@@ -715,6 +717,96 @@ class Slug {
      */
     updateTurboBoost(deltaTime) {
         // Будет реализовано в патче для гоночной улитки
+    }
+    
+    /**
+     * Проверяет, достигла ли улитка финиша
+     * @returns {boolean} True, если улитка достигла финиша
+     */
+    isAtFinish() {
+        if (!this.maze || !this.finishPosition) {
+            return false;
+        }
+        
+        const distance = Math.sqrt(
+            Math.pow(this.position.x - this.finishPosition.x, 2) +
+            Math.pow(this.position.y - this.finishPosition.y, 2)
+        );
+        
+        // Улитка достигла финиша, если расстояние меньше заданного порога
+        return distance < 0.5;
+    }
+    
+    /**
+     * Обновляет состояние улитки
+     * @param {number} deltaTime - Прошедшее время с последнего обновления в миллисекундах
+     */
+    update(deltaTime) {
+        // Если улитка не двигается или уже финишировала, ничего не делаем
+        if (!this.isMoving || this.isFinished) {
+            return;
+        }
+        
+        // Проверка достижения финиша
+        if (this.isAtFinish()) {
+            this.finish();
+            
+            // Создаем событие для оповещения других компонентов
+            const finishEvent = new CustomEvent('slug-finished', {
+                detail: {
+                    slug: this,
+                    time: performance.now()
+                }
+            });
+            window.dispatchEvent(finishEvent);
+            
+            return;
+        }
+        
+        // ... остальной существующий код метода update ...
+    }
+
+    /**
+     * Отрисовывает отладочную информацию
+     * @param {CanvasRenderingContext2D} ctx - Контекст для рисования
+     * @param {number} x - X координата улитки
+     * @param {number} y - Y координата улитки
+     * @param {number} cellSize - Размер ячейки
+     * @private
+     */
+    _renderDebugInfo(ctx, x, y, cellSize) {
+        ctx.save();
+        
+        // Отображаем тип и скорость улитки
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.font = '10px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(`${this.type} (${this.speed.toFixed(2)})`, x, y - cellSize / 2 - 5);
+        
+        // Отображаем путь улитки, если он есть
+        if (this.path && this.path.length > 0) {
+            ctx.strokeStyle = this.color;
+            ctx.globalAlpha = 0.3;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            
+            // Начинаем с текущей позиции
+            const startX = this.position.x * cellSize + cellSize / 2;
+            const startY = this.position.y * cellSize + cellSize / 2;
+            ctx.moveTo(startX, startY);
+            
+            // Рисуем линию через все точки пути
+            for (let i = this.currentPathIndex; i < this.path.length; i++) {
+                const pathPoint = this.path[i];
+                const pathX = pathPoint.x * cellSize + cellSize / 2;
+                const pathY = pathPoint.y * cellSize + cellSize / 2;
+                ctx.lineTo(pathX, pathY);
+            }
+            
+            ctx.stroke();
+        }
+        
+        ctx.restore();
     }
 }
 

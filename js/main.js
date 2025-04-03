@@ -37,7 +37,10 @@ function showError(message, details) {
     document.body.appendChild(errorContainer);
 }
 
-// Создание HTML-элементов для отображения гонки
+/**
+ * Настраивает элементы для отображения гонки
+ * @returns {Object} Объект с созданными элементами
+ */
 function setupRaceElements() {
     // Создаем контейнер для гонки, если его не существует
     let raceContainer = document.getElementById('race-container');
@@ -45,6 +48,7 @@ function setupRaceElements() {
         raceContainer = document.createElement('div');
         raceContainer.id = 'race-container';
         raceContainer.classList.add('hidden');
+        raceContainer.style.cssText = 'width: 100%; height: 80vh; position: relative; margin: 0 auto; overflow: hidden; background-color: #000;';
         document.body.appendChild(raceContainer);
     }
     
@@ -53,7 +57,31 @@ function setupRaceElements() {
     if (!raceCanvas) {
         raceCanvas = document.createElement('canvas');
         raceCanvas.id = 'race-canvas';
+        raceCanvas.style.cssText = 'display: block; margin: 0 auto; background-color: #111;';
         raceContainer.appendChild(raceCanvas);
+    }
+    
+    // Создаем панель информации о гонке
+    let raceInfo = document.getElementById('race-info');
+    if (!raceInfo) {
+        raceInfo = document.createElement('div');
+        raceInfo.id = 'race-info';
+        raceInfo.classList.add('race-info');
+        raceInfo.style.cssText = 'position: absolute; top: 10px; left: 10px; padding: 5px 10px; background-color: rgba(0,0,0,0.7); color: white; border-radius: 5px; font-size: 14px; z-index: 10;';
+        
+        // Добавляем таймер гонки
+        const raceTimer = document.createElement('div');
+        raceTimer.id = 'race-timer';
+        raceTimer.textContent = 'Время: 0.0 сек';
+        raceInfo.appendChild(raceTimer);
+        
+        // Добавляем информацию о выбранной улитке
+        const selectedSnailInfo = document.createElement('div');
+        selectedSnailInfo.id = 'selected-snail-info';
+        selectedSnailInfo.textContent = 'Ваша улитка: Не выбрана';
+        raceInfo.appendChild(selectedSnailInfo);
+        
+        raceContainer.appendChild(raceInfo);
     }
     
     // Создаем экран загрузки, если его не существует
@@ -62,15 +90,24 @@ function setupRaceElements() {
         loadingScreen = document.createElement('div');
         loadingScreen.id = 'loading-screen';
         loadingScreen.classList.add('overlay', 'hidden');
+        loadingScreen.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.8); display: flex; justify-content: center; align-items: center; z-index: 1000;';
         
         const loadingContent = document.createElement('div');
         loadingContent.className = 'overlay-content';
+        loadingContent.style.cssText = 'text-align: center; color: white;';
         
         const loadingText = document.createElement('p');
         loadingText.textContent = 'Загрузка гонки...';
+        loadingText.style.cssText = 'font-size: 24px; margin-bottom: 20px;';
         
         const spinner = document.createElement('div');
         spinner.className = 'spinner';
+        spinner.style.cssText = 'width: 50px; height: 50px; border: 5px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: #fff; animation: spin 1s ease-in-out infinite;';
+        
+        // Добавляем стиль для анимации спиннера
+        const style = document.createElement('style');
+        style.textContent = '@keyframes spin { to { transform: rotate(360deg); } }';
+        document.head.appendChild(style);
         
         loadingContent.appendChild(loadingText);
         loadingContent.appendChild(spinner);
@@ -82,6 +119,7 @@ function setupRaceElements() {
     return {
         raceContainer,
         raceCanvas,
+        raceInfo,
         loadingScreen
     };
 }
@@ -112,14 +150,9 @@ let ctx = null;
 let wallet = null;
 let raceStarted = false;
 let raceFinished = false;
-
-// Массив улиток-соперников
-const OPPONENTS = [
-    { type: 'racer', image: 'images/snail_red.png', name: 'Racer' },
-    { type: 'explorer', image: 'images/snail_green.png', name: 'Explorer' },
-    { type: 'snake', image: 'images/snail_blue.png', name: 'Snake' },
-    { type: 'stubborn', image: 'images/snail_lilac.png', name: 'Stubborn' }
-];
+let gameCycle = null;
+// Режим отладки (для дополнительной информации)
+const DEBUG_MODE = false;
 
 // Настройки изображений
 const IMAGE_PATHS = {
@@ -132,6 +165,14 @@ const IMAGE_PATHS = {
     snail_lilac: 'images/snail_lilac.png',
     snail_yellow: 'images/snail_yellow.png'
 };
+
+// Массив улиток-соперников
+const OPPONENTS = [
+    { type: 'racer', image: 'images/snail_red.png', name: 'Racer' },
+    { type: 'explorer', image: 'images/snail_green.png', name: 'Explorer' },
+    { type: 'snake', image: 'images/snail_blue.png', name: 'Snake' },
+    { type: 'stubborn', image: 'images/snail_lilac.png', name: 'Stubborn' }
+];
 
 // Кеш загруженных изображений
 const imageCache = {};
@@ -432,7 +473,6 @@ function loadGameImages() {
         }
         
         let loadedCount = 0;
-        let errorCount = 0;
         const totalImages = imagesToLoad.length;
         
         // Функция для отслеживания прогресса загрузки
@@ -440,32 +480,9 @@ function loadGameImages() {
             loadedCount++;
             console.log(`Загружено изображение (${loadedCount}/${totalImages}): ${path}`);
             
-            // Когда все изображения обработаны (загружены или с ошибками), разрешаем промис
-            if (loadedCount + errorCount === totalImages) {
-                if (errorCount > 0) {
-                    console.warn(`Загружено ${loadedCount} изображений, ${errorCount} с ошибками`);
-                }
-                // Все равно разрешаем промис, даже если были ошибки
-                resolve(imageCache);
-            }
-        };
-        
-        const onImageError = (path, error) => {
-            errorCount++;
-            console.warn(`Ошибка загрузки изображения ${path}:`, error);
-            
-            // Пробуем создать заглушку для отсутствующего изображения
-            const img = new Image(40, 40);
-            img.width = 40;
-            img.height = 40;
-            imageCache[path] = img;
-            
-            // Когда все изображения обработаны, разрешаем промис
-            if (loadedCount + errorCount === totalImages) {
-                if (errorCount > 0) {
-                    console.warn(`Загружено ${loadedCount} изображений, ${errorCount} с ошибками`);
-                }
-                // Все равно разрешаем промис, даже если были ошибки
+            // Когда все изображения загружены, разрешаем промис
+            if (loadedCount === totalImages) {
+                console.log('Все изображения успешно загружены');
                 resolve(imageCache);
             }
         };
@@ -487,11 +504,20 @@ function loadGameImages() {
             };
             
             img.onerror = (error) => {
-                onImageError(path, error);
+                console.error(`Ошибка загрузки изображения ${path}:`, error);
+                
+                // Создаем пустое изображение вместо ошибки
+                const emptyImg = new Image(40, 40);
+                emptyImg.width = 40;
+                emptyImg.height = 40;
+                imageCache[path] = emptyImg;
+                
+                // Продолжаем, несмотря на ошибку
+                onImageLoad(path);
             };
             
-            // Добавляем случайное значение для предотвращения кэширования
-            img.src = path + '?t=' + Date.now();
+            // Загружаем изображение напрямую, без кэширования
+            img.src = path;
         });
         
         // Если нет изображений для загрузки, сразу разрешаем промис
@@ -503,80 +529,216 @@ function loadGameImages() {
 
 // Добавляем улучшенную функцию для добавления улиток на экран выбора
 function createSnailOptions() {
-    const snailGrid = document.querySelector('.snail-grid');
+    console.log('Creating snail options...');
     
-    if (!snailGrid) {
-        console.error('Element .snail-grid not found!');
-        logError('Не найден элемент .snail-grid для отображения улиток');
-        return;
-    }
-    
-    console.log('Creating snail options in grid:', snailGrid);
-    snailGrid.innerHTML = '';
-    
-    // Добавляем логирование для отладки
-    if (typeof logInfo === 'function') {
-        logInfo('Создание вариантов улиток', {
-            gridFound: !!snailGrid,
-            snailTypes: Object.keys(SNAIL_TYPES)
-        });
-    }
-    
-    // Добавляем стандартную улитку
-    const defaultSnail = SNAIL_TYPES.deadender;
-    addSnailOption(snailGrid, 'deadender', defaultSnail.name, defaultSnail.color, defaultSnail.description);
-    
-    // Добавляем остальные типы улиток
-    for (const type in SNAIL_TYPES) {
-        if (type !== 'deadender') {
-            const snail = SNAIL_TYPES[type];
-            addSnailOption(snailGrid, type, snail.name, snail.color, snail.description);
-        }
-    }
-    
-    // Проверяем, добавились ли улитки
-    setTimeout(() => {
-        const addedOptions = snailGrid.querySelectorAll('.snail-option');
-        console.log(`Added ${addedOptions.length} snail options to the grid`);
+    try {
+        let snailGrid = document.querySelector('.snail-grid');
         
-        if (typeof logInfo === 'function') {
-            logInfo(`Добавлено ${addedOptions.length} вариантов улиток`);
-        }
-        
-        if (addedOptions.length === 0) {
-            // Если улитки не появились, принудительно добавляем их снова
-            console.warn('No snail options were added, trying to fix...');
+        // Если элемент .snail-grid не найден, попробуем найти start-screen и создать в нем snail-grid
+        if (!snailGrid) {
+            console.warn('Element .snail-grid not found! Attempting to create it...');
             
-            // Чистим и пробуем снова
-            setTimeout(() => {
-                snailGrid.innerHTML = '';
+            // Логирование для отладки
+            if (typeof logWarning === 'function') {
+                logWarning('Не найден элемент .snail-grid, пытаемся создать');
+            }
+            
+            const startScreen = document.getElementById('start-screen');
+            
+            // Если не найден start-screen, проверяем весь DOM и создаем нужные элементы
+            if (!startScreen) {
+                console.error('Start screen element not found! Attempting to create base structure...');
                 
-                // Упрощенное добавление всех улиток
-                Object.entries(SNAIL_TYPES).forEach(([type, snail]) => {
-                    const element = document.createElement('div');
-                    element.className = 'snail-option';
-                    element.dataset.snail = type;
-                    
-                    element.innerHTML = `
-                        <div class="snail-color" style="background-color: ${snail.color}"></div>
-                        <div class="snail-info">
-                            <h3>${snail.name}</h3>
-                            <p>${snail.description}</p>
+                if (typeof logError === 'function') {
+                    logError('Не найден элемент start-screen, создаем базовую структуру');
+                }
+                
+                // Проверяем наличие контейнера app
+                let appContainer = document.getElementById('app');
+                
+                if (!appContainer) {
+                    console.warn('App container not found, creating it');
+                    appContainer = document.createElement('div');
+                    appContainer.id = 'app';
+                    document.body.appendChild(appContainer);
+                }
+                
+                // Создаем start-screen
+                const newStartScreen = document.createElement('div');
+                newStartScreen.id = 'start-screen';
+                newStartScreen.className = 'screen';
+                newStartScreen.style.display = 'flex';
+                
+                // Добавляем базовую структуру
+                newStartScreen.innerHTML = `
+                    <h1>Snail to Riches</h1>
+                    <div id="snail-selection">
+                        <h2>Choose your snail</h2>
+                        <div class="snail-grid"></div>
+                    </div>
+                    <div id="betting-section">
+                        <div class="bet-container">
+                            <span class="bet-label">Bet:</span>
+                            <input type="number" id="bet-amount" placeholder="Enter bet amount" value="10">
                         </div>
-                    `;
-                    
-                    element.addEventListener('click', () => selectSnail(element, type));
-                    snailGrid.appendChild(element);
-                    
-                    console.log(`Force-added snail option: ${type}`);
+                        <div class="balance-info">
+                            <span>Balance: <span id="balance-amount">100</span> coins</span>
+                        </div>
+                        <button id="start-race" class="buy-button">Start Race</button>
+                    </div>
+                `;
+                
+                appContainer.appendChild(newStartScreen);
+                
+                // Обновляем snailGrid после создания
+                snailGrid = newStartScreen.querySelector('.snail-grid');
+                
+                // Делаем все остальные экраны скрытыми
+                const otherScreens = document.querySelectorAll('.screen:not(#start-screen)');
+                otherScreens.forEach(screen => {
+                    screen.classList.add('hidden');
+                    screen.style.display = 'none';
                 });
                 
-                if (typeof logInfo === 'function') {
-                    logInfo('Принудительное восстановление улиток завершено');
+                console.log('Created basic screen structure');
+                
+                // Добавляем обработчик для кнопки старта
+                setTimeout(() => {
+                    const startRaceBtn = document.getElementById('start-race');
+                    if (startRaceBtn) {
+                        startRaceBtn.addEventListener('click', startRace);
+                        console.log('Added event listener to start race button');
+                    }
+                }, 100);
+            } else {
+                // start-screen найден, проверяем наличие заголовка и создаем .snail-grid
+                console.log('Start screen found, checking for h2 and creating snail-grid');
+                
+                let snailSelection = startScreen.querySelector('#snail-selection');
+                
+                // Если нет контейнера для выбора улиток, создаем его
+                if (!snailSelection) {
+                    snailSelection = document.createElement('div');
+                    snailSelection.id = 'snail-selection';
+                    
+                    // Находим место для вставки
+                    const h1 = startScreen.querySelector('h1');
+                    if (h1) {
+                        startScreen.insertBefore(snailSelection, h1.nextSibling);
+                    } else {
+                        startScreen.prepend(snailSelection);
+                    }
                 }
-            }, 500);
+                
+                // Проверяем, есть ли уже заголовок h2 в snail-selection
+                let titleExists = snailSelection.querySelector('h2');
+                if (!titleExists) {
+                    const title = document.createElement('h2');
+                    title.textContent = 'Choose your snail';
+                    snailSelection.appendChild(title);
+                }
+                
+                // Создаем элемент snail-grid
+                snailGrid = document.createElement('div');
+                snailGrid.className = 'snail-grid';
+                snailSelection.appendChild(snailGrid);
+                
+                console.log('Created .snail-grid element');
+            }
         }
-    }, 100);
+        
+        console.log('Creating snail options in grid:', snailGrid);
+        snailGrid.innerHTML = '';
+        
+        // Добавляем логирование для отладки
+        if (typeof logInfo === 'function') {
+            logInfo('Создание вариантов улиток', {
+                gridFound: !!snailGrid,
+                snailTypes: Object.keys(SNAIL_TYPES)
+            });
+        }
+        
+        // Добавляем стандартную улитку
+        const defaultSnail = SNAIL_TYPES.deadender;
+        addSnailOption(snailGrid, 'deadender', defaultSnail.name, defaultSnail.color, defaultSnail.description);
+        
+        // Добавляем остальные типы улиток
+        for (const type in SNAIL_TYPES) {
+            if (type !== 'deadender') {
+                const snail = SNAIL_TYPES[type];
+                addSnailOption(snailGrid, type, snail.name, snail.color, snail.description);
+            }
+        }
+        
+        // Проверяем, добавились ли улитки
+        setTimeout(() => {
+            const addedOptions = snailGrid.querySelectorAll('.snail-option');
+            console.log(`Added ${addedOptions.length} snail options to the grid`);
+            
+            if (typeof logInfo === 'function') {
+                logInfo(`Добавлено ${addedOptions.length} вариантов улиток`);
+            }
+            
+            if (addedOptions.length === 0) {
+                // Если улитки не появились, принудительно добавляем их снова
+                console.warn('No snail options were added, trying to fix...');
+                
+                // Чистим и пробуем снова
+                setTimeout(() => {
+                    snailGrid.innerHTML = '';
+                    
+                    // Упрощенное добавление всех улиток
+                    Object.entries(SNAIL_TYPES).forEach(([type, snail]) => {
+                        const element = document.createElement('div');
+                        element.className = 'snail-option';
+                        element.dataset.snail = type;
+                        
+                        element.innerHTML = `
+                            <div class="snail-color" style="background-color: ${snail.color}"></div>
+                            <div class="snail-info">
+                                <h3>${snail.name}</h3>
+                                <p>${snail.description}</p>
+                            </div>
+                        `;
+                        
+                        element.addEventListener('click', () => selectSnail(element, type));
+                        snailGrid.appendChild(element);
+                        
+                        console.log(`Force-added snail option: ${type}`);
+                    });
+                    
+                    if (typeof logInfo === 'function') {
+                        logInfo('Принудительное восстановление улиток завершено');
+                    }
+                    
+                    // Автоматически выбираем первую улитку
+                    const firstSnail = snailGrid.querySelector('.snail-option');
+                    if (firstSnail) {
+                        firstSnail.click();
+                    }
+                }, 500);
+            }
+        }, 100);
+        
+        // Показываем стартовый экран, если он скрыт
+        const startScreen = document.getElementById('start-screen');
+        if (startScreen && (startScreen.style.display === 'none' || startScreen.classList.contains('hidden'))) {
+            console.log('Showing start screen');
+            startScreen.style.display = 'flex';
+            startScreen.classList.remove('hidden');
+        }
+        
+    } catch (error) {
+        console.error('Error creating snail options:', error);
+        
+        if (typeof logError === 'function') {
+            logError('Ошибка создания опций улиток: ' + error.message);
+        }
+        
+        if (typeof showError === 'function') {
+            showError('Не удалось создать варианты улиток', error);
+        }
+    }
 }
 
 // Добавляет одну опцию улитки в grid
@@ -752,20 +914,31 @@ function updateRaceButton() {
     }
 }
 
-// Адаптация размера canvas
+/**
+ * Изменяет размер canvas в соответствии с размером окна
+ */
 function resizeCanvas() {
     if (!canvas) return;
     
-    // Устанавливаем размер canvas в соответствии с его контейнером
-    const container = canvas.parentElement;
-    canvas.width = container.clientWidth;
-    canvas.height = Math.min(window.innerHeight * 0.7, container.clientWidth);
+    // Получаем размер контейнера
+    const container = document.getElementById('race-container');
+    if (!container) return;
     
-    // Если гонка уже началась, перерисовываем лабиринт
-    if (raceStarted && maze && slugManager) {
-        drawMaze();
+    // Устанавливаем полный размер контейнера
+    canvas.width = container.clientWidth;
+    canvas.height = container.clientHeight;
+    
+    // Если есть лабиринт и менеджер улиток, перерисовываем сцену
+    if (maze && slugManager) {
+        // Перерисовываем сцену с новым размером
+        render();
     }
+    
+    console.log(`Canvas размер установлен: ${canvas.width} x ${canvas.height}`);
 }
+
+// Добавляем слушатель события изменения размера окна
+window.addEventListener('resize', resizeCanvas);
 
 // Проверка доступности ресурсов
 function checkResourcesAvailability() {
@@ -788,212 +961,219 @@ function checkResourcesAvailability() {
     });
 }
 
-// Запуск гонки улиток в созданном лабиринте
-function startRace() {
-    try {
-        console.log("Начинаю подготовку гонки...");
-        
-        // Получаем случайный стиль для лабиринта
-        const mazeStyle = getRandomMazeStyle();
-        console.log("Выбран стиль лабиринта:", mazeStyle.name);
-        
-        // Создаем лабиринт, если он не создан
-        if (!maze) {
-            console.log("Создаю лабиринт...");
-            // Инициализируем новый лабиринт с выбранным стилем
-            maze = new Maze(15, 15, mazeStyle); // размер лабиринта 15x15
-            maze.generate();
-            console.log("Лабиринт успешно создан");
-        } else {
-            // Обновляем стиль существующего лабиринта
-            maze.setStyle(mazeStyle);
-        }
-        
-        // Проверяем наличие обязательных компонентов
-        if (!maze) {
-            throw new Error("Лабиринт не создан. Невозможно начать гонку.");
-        }
-        
-        if (!canvas) {
-            throw new Error("Canvas не инициализирован. Невозможно отобразить гонку.");
-        }
-        
-        // Проверка доступности необходимых изображений - асинхронно
-        checkImagesExistence().then(checkImagesResult => {
-            console.log("Результат проверки изображений:", checkImagesResult);
-            
-            // Продолжаем даже если есть проблемы с изображениями
-            continueStartRace();
-        }).catch(error => {
-            console.warn("Проблема при проверке изображений:", error);
-            // Продолжаем несмотря на ошибки
-            continueStartRace();
-        });
-        
-        // Функция для продолжения запуска гонки после проверки изображений
-        function continueStartRace() {
-            try {
-                // Создаем менеджер улиток
-                console.log("Создаю менеджер улиток...");
-                slugManager = new SlugManager({
-                    maze: maze,
-                    canvas: canvas
-                });
-                
-                if (!slugManager) {
-                    throw new Error("Не удалось создать менеджера улиток");
-                }
-                
-                console.log("Менеджер улиток создан. Загружаю изображения...");
-                
-                // Добавляем улитку игрока и оппонентов
-                if (selectedSnail) {
-                    console.log(`Добавляю улитку игрока типа: ${selectedSnail}`);
-                    
-                    // Используем getSnailImage для получения изображения
-                    const playerImage = getSnailImage(selectedSnail);
-                    
-                    slugManager.addPlayerSlug({
-                        type: selectedSnail,
-                        color: SNAIL_TYPES[selectedSnail]?.color || '#ffb300',
-                        image: playerImage
-                    });
-                } else {
-                    console.warn("Игрок не выбрал улитку, используем стандартную");
-                    const defaultType = 'deadender';
-                    selectedSnail = defaultType;
-                    slugManager.addPlayerSlug({
-                        type: defaultType,
-                        color: SNAIL_TYPES[defaultType]?.color || '#ffb300',
-                        image: getSnailImage(defaultType)
-                    });
-                }
-                
-                // Добавляем улиток оппонентов (случайный порядок)
-                const shuffledOpponents = [...OPPONENTS].sort(() => Math.random() - 0.5);
-                for (let i = 0; i < 3; i++) {
-                    if (i < shuffledOpponents.length) {
-                        const opponent = shuffledOpponents[i];
-                        console.log(`Добавляю улитку оппонента ${i + 1} типа: ${opponent.type}`);
-                        
-                        // Получаем изображение через getSnailImage
-                        const opponentImage = getSnailImage(opponent.type);
-                        
-                        if (opponent.type) {
-                            slugManager.addOpponentSlug({
-                                type: opponent.type,
-                                color: getColorForType(opponent.type),
-                                image: opponentImage
-                            });
-                        }
-                    }
-                }
-                
-                // Регистрируем обработчик для завершения гонки
-                slugManager.on('raceFinished', (results) => {
-                    onRaceFinished(results);
-                });
-                
-                // Запускаем гонку
-                console.log("Все улитки добавлены. Запускаю гонку!");
-                slugManager.startRace();
-                raceStarted = true;
-            } catch (error) {
-                console.error("Ошибка при продолжении гонки:", error);
-                showError("Не удалось запустить гонку", {
-                    message: error.message,
-                    stack: error.stack,
-                    stage: "continueStartRace"
-                });
-            }
-        }
-                
-        return true;
-    } catch (error) {
-        const errorDetails = {
-            message: error.message,
-            stack: error.stack,
-            stage: "startRace"
-        };
-        console.error("Ошибка при запуске гонки:", errorDetails);
-        showError("Не удалось запустить гонку", errorDetails);
+// Инициализирует игровой цикл
+function initGameCycle() {
+    if (!slugManager || !canvas) {
+        console.error('Не удалось инициализировать игровой цикл: не определены slugManager или canvas');
         return false;
+    }
+    
+    // Создаем новый экземпляр GameCycle
+    gameCycle = new GameCycle({
+        slugManager: slugManager,
+        canvas: canvas
+    });
+    
+    // Устанавливаем обработчики событий
+    gameCycle.setOnRaceStart(() => {
+        console.log('Гонка началась!');
+        showRaceScreen();
+    });
+    
+    gameCycle.setOnRaceUpdate((data) => {
+        updateRaceUI(data.elapsedTime);
+    });
+    
+    gameCycle.setOnWinnerDetermined((winner) => {
+        console.log('Победитель определен:', winner?.type);
+        highlightWinner(winner);
+    });
+    
+    gameCycle.setOnRaceFinish((raceData) => {
+        console.log('Гонка завершена!', raceData);
+        processRaceResults(raceData);
+    });
+    
+    console.log('Игровой цикл инициализирован');
+    return true;
+}
+
+/**
+ * Обновляет интерфейс гонки на основе данных
+ * @param {number} elapsedTime - Прошедшее время гонки
+ */
+function updateRaceUI(elapsedTime) {
+    // Обновляем таймер гонки
+    const timerElement = document.getElementById('race-timer');
+    if (timerElement) {
+        timerElement.textContent = `Время: ${elapsedTime.toFixed(1)} сек`;
     }
 }
 
-// Функция для проверки существования изображений
-function checkImagesExistence() {
-    return new Promise((resolve, reject) => {
-        try {
-            const requiredImages = [
-                ...Object.values(IMAGE_PATHS),
-                ...OPPONENTS.map(o => o.image),
-                selectedSnail ? selectedSnail.image : null
-            ].filter(Boolean);
-            
-            console.log("Проверка наличия изображений:", requiredImages);
-            
-            const missingImages = [];
-            for (const imagePath of requiredImages) {
-                if (!imageCache[imagePath]) {
-                    console.warn(`Отсутствует изображение: ${imagePath}`);
-                    
-                    // Создаем пустое изображение вместо отсутствующего
-                    const placeholderImg = new Image(40, 40);
-                    placeholderImg.width = 40;
-                    placeholderImg.height = 40;
-                    imageCache[imagePath] = placeholderImg;
-                    
-                    missingImages.push(imagePath);
-                } else {
-                    console.log(`Изображение найдено: ${imagePath}`);
-                }
-            }
-            
-            if (missingImages.length > 0) {
-                console.warn("Некоторые изображения отсутствуют, но игра будет продолжена", missingImages);
-            }
-            
-            // Всегда разрешаем промис, даже если некоторые изображения отсутствуют
-            resolve({
-                status: missingImages.length === 0 ? "success" : "partial", 
-                message: missingImages.length === 0 ? "Все изображения загружены" : "Загружены не все изображения",
-                missingImages
-            });
-        } catch (error) {
-            console.error("Ошибка при проверке изображений:", error);
-            // Все равно продолжаем, не блокируем игру
-            resolve({
-                status: "error",
-                message: "Ошибка при проверке изображений",
-                error
-            });
-        }
-    });
+/**
+ * Выделяет победителя на экране
+ * @param {Slug} winner - Улитка-победитель
+ */
+function highlightWinner(winner) {
+    if (!winner) return;
+    
+    // Здесь можно добавить анимацию или выделение победителя
+    console.log(`Выделяем победителя: ${winner.type}`);
+    
+    // Например, добавить эффект свечения для победителя
+    if (winner.sprite) {
+        // ... код для добавления визуального эффекта ...
+    }
 }
 
-// Функция для получения изображения улитки по типу
-function getSnailImage(type) {
+/**
+ * Обрабатывает результаты гонки
+ * @param {Object} raceData - Данные о результатах гонки
+ */
+function processRaceResults(raceData) {
+    raceFinished = true;
+    
+    // Показываем экран результатов с небольшой задержкой
+    setTimeout(() => {
+        showResultsScreen(raceData.winner?.type === selectedSnail?.type);
+    }, 1500);
+    
+    // Обрабатываем выигрыш/проигрыш
+    if (raceData.winner?.type === selectedSnail?.type) {
+        // Игрок выиграл
+        processWin();
+    } else {
+        // Игрок проиграл
+        processLoss();
+    }
+}
+
+/**
+ * Запускает гонку
+ */
+function startRace() {
+    console.log('Запуск гонки...');
+    
     try {
-        // Проверка на тип улитки и соответствие изображению
-        switch (type) {
-            case 'deadender':
-                return imageCache['images/snail_yellow.png'] || null;
-            case 'racer':
-                return imageCache['images/snail_red.png'] || null;
-            case 'explorer':
-                return imageCache['images/snail_green.png'] || null;
-            case 'snake':
-                return imageCache['images/snail_blue.png'] || null;
-            case 'stubborn':
-                return imageCache['images/snail_lilac.png'] || null;
-            default:
-                console.warn(`No image mapping for slug type: ${type}`);
-                return null;
+        // Инициализируем canvas и контекст, если они еще не инициализированы
+        if (!canvas) {
+            canvas = document.getElementById('race-canvas');
+            if (!canvas) {
+                console.error('Ошибка: canvas не найден');
+                showError('Ошибка при запуске гонки', 'Элемент race-canvas не найден в DOM');
+                return;
+            }
         }
+        
+        if (!ctx && canvas) {
+            ctx = canvas.getContext('2d');
+            if (!ctx) {
+                console.error('Ошибка: не удалось получить контекст canvas');
+                showError('Ошибка при запуске гонки', 'Не удалось получить 2D контекст для canvas');
+                return;
+            }
+        }
+        
+        // Показываем экран гонки
+        showRaceScreen();
+        
+        // Адаптируем размер canvas к окну
+        resizeCanvas();
+        
+        // Проверяем доступность класса Maze
+        if (typeof Maze !== 'function') {
+            console.error('Ошибка: класс Maze не найден!');
+            showError('Ошибка при подготовке гонки', 'Не удалось найти класс лабиринта (Maze). Возможно, модуль не загружен.');
+            return;
+        }
+        
+        // Проверяем доступность класса SlugManager
+        if (typeof SlugManager !== 'function') {
+            console.error('Ошибка: класс SlugManager не найден!');
+            showError('Ошибка при подготовке гонки', 'Не удалось найти класс менеджера улиток (SlugManager). Возможно, модуль не загружен.');
+            return;
+        }
+        
+        // Проверяем доступность класса GameCycle
+        if (typeof GameCycle !== 'function') {
+            console.error('Ошибка: класс GameCycle не найден!');
+            showError('Ошибка при подготовке гонки', 'Не удалось найти класс игрового цикла (GameCycle). Возможно, модуль не загружен.');
+            return;
+        }
+        
+        // Создаем SlugManager, если он не существует
+        if (!slugManager) {
+            console.log('Инициализация SlugManager...');
+            try {
+                slugManager = new SlugManager({
+                    canvas: canvas
+                });
+            } catch (error) {
+                console.error('Ошибка при создании SlugManager:', error);
+                showError('Ошибка при подготовке гонки', {
+                    message: 'Не удалось создать менеджер улиток',
+                    error: error.message,
+                    stack: error.stack
+                });
+                return;
+            }
+        }
+        
+        // Инициализируем игровой цикл, если он еще не инициализирован
+        if (!gameCycle && !initGameCycle()) {
+            console.error('Не удалось инициализировать игровой цикл');
+            showError('Ошибка при подготовке гонки', 'Не удалось инициализировать игровой цикл. Проверьте консоль для получения дополнительной информации.');
+            return;
+        }
+        
+        console.log('Подготовка к гонке...');
+        
+        // Подготавливаем гонку к запуску
+        try {
+            if (gameCycle.prepare({
+                mazeWidth: 20,
+                mazeHeight: 15
+            })) {
+                console.log('Гонка успешно подготовлена, показываю экран загрузки...');
+                showLoadingScreen();
+                
+                // Запускаем гонку после небольшой задержки
+                setTimeout(() => {
+                    hideLoadingScreen();
+                    console.log('Запуск гонки...');
+                    
+                    try {
+                        gameCycle.start();
+                        raceStarted = true;
+                        // Запускаем игровой цикл обновления
+                        requestAnimationFrame(gameLoop);
+                    } catch (error) {
+                        console.error('Ошибка при запуске гонки:', error);
+                        hideLoadingScreen();
+                        showError('Ошибка при запуске гонки', {
+                            message: error.message,
+                            stack: error.stack
+                        });
+                    }
+                }, 1500);
+            } else {
+                console.error('Ошибка при подготовке гонки: prepare() вернул false');
+                showError('Ошибка при подготовке гонки', 'Не удалось корректно подготовить гонку. Возможно, проблема с созданием лабиринта или настройкой улиток.');
+            }
+        } catch (error) {
+            console.error('Ошибка при подготовке гонки:', error);
+            showError('Ошибка при подготовке гонки', {
+                message: error.message,
+                stack: error.stack
+            });
+        }
+        
     } catch (error) {
-        console.error(`Error getting snail image for type ${type}:`, error);
-        return null;
+        console.error('Критическая ошибка при запуске гонки:', error);
+        showError('Критическая ошибка', {
+            message: error.message,
+            stack: error.stack
+        });
     }
 }
 
@@ -1197,45 +1377,6 @@ function drawMaze() {
     }
 }
 
-// Обработка окончания гонки
-function handleRaceFinished(winner) {
-    raceFinished = true;
-    
-    console.log('Race completed, winner:', winner ? winner.type : 'no winner');
-    
-    // Показываем экран результатов
-    setTimeout(() => {
-        document.getElementById('race-screen').classList.add('hidden');
-        document.getElementById('results-screen').classList.remove('hidden');
-        
-        // Обновляем результаты
-        const resultMessage = document.getElementById('result-message');
-        const winningsAmount = document.getElementById('winnings-amount');
-        
-        if (winner && winner.isPlayer) {
-            // Игрок победил
-            resultMessage.textContent = `Your snail ${SNAIL_TYPES[selectedSnail].name} won!`;
-            
-            // Рассчитываем выигрыш
-            const winnings = betAmount * WIN_MULTIPLIERS[selectedSnail];
-            winningsAmount.textContent = `Winnings: ${winnings.toFixed(2)} SOL`;
-            
-            // Имитируем зачисление выигрыша
-            if (wallet) {
-                wallet.balance += winnings - betAmount;
-            }
-        } else if (winner) {
-            // Улитка-соперник победила
-            resultMessage.textContent = `The ${SNAIL_TYPES[winner.type].name} snail won. You lost.`;
-            winningsAmount.textContent = `Bet lost: ${betAmount.toFixed(2)} SOL`;
-        } else {
-            // Никто не победил
-            resultMessage.textContent = `Draw! Race ended without a winner.`;
-            winningsAmount.textContent = `Bet returned: ${betAmount.toFixed(2)} SOL`;
-        }
-    }, 1000);
-}
-
 // Сброс игры для повторной игры
 function resetGame() {
     console.log('Resetting game...');
@@ -1324,10 +1465,6 @@ if (typeof window.Slug === 'function') {
 function checkAndLoadResources() {
     console.log('Checking and loading resources...');
     
-    if (typeof logInfo === 'function') {
-        logInfo('Проверка ресурсов приложения');
-    }
-    
     // Проверяем наличие необходимых изображений
     const requiredImages = [
         'images/snail_red.png',
@@ -1343,104 +1480,128 @@ function checkAndLoadResources() {
     // Создаем HTML для отображения статуса загрузки
     const loadingStatus = document.createElement('div');
     loadingStatus.style.cssText = 'position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); background:rgba(0,0,0,0.8); color:white; padding:20px; border-radius:10px; z-index:9999; max-width:80%; text-align:center;';
-    loadingStatus.innerHTML = '<h3>Загрузка ресурсов...</h3><div id="resourceList"></div><div id="progress">0%</div>';
+    loadingStatus.innerHTML = '<h3>Загрузка ресурсов...</h3><div id="progress">0%</div>';
     document.body.appendChild(loadingStatus);
     
-    const resourceList = loadingStatus.querySelector('#resourceList');
     const progressElement = loadingStatus.querySelector('#progress');
     
-    // Функция для обновления статуса загрузки
-    const updateStatus = (image, status) => {
-        const statusElement = document.getElementById(`status-${btoa(image)}`);
-        if (statusElement) {
-            statusElement.innerHTML = status === 'success' ? 
-                '<span style="color:#4CAF50;">✓</span>' : 
-                '<span style="color:#f44336;">✗</span>';
-        } else {
-            const newElement = document.createElement('div');
-            newElement.style.cssText = 'text-align:left; font-size:12px; margin:5px 0;';
-            newElement.innerHTML = `${image.split('/').pop()}: <span id="status-${btoa(image)}">${
-                status === 'success' ? 
-                '<span style="color:#4CAF50;">✓</span>' : 
-                '<span style="color:#f44336;">✗</span>'
-            }</span>`;
-            resourceList.appendChild(newElement);
-        }
-    };
-    
-    // Загружаем изображения
-    let loadedCount = 0;
-    const totalImages = requiredImages.length;
-    
     // Возвращаем Promise для последовательного выполнения
-    return new Promise((resolve, reject) => {
-        // Предварительная проверка доступности каталога с изображениями
-        const testImg = new Image();
-        testImg.onload = () => {
-            // Каталог доступен, продолжаем загрузку всех изображений
-            requiredImages.forEach((imagePath, index) => {
-                const img = new Image();
-                
-                img.onload = () => {
-                    loadedCount++;
-                    updateStatus(imagePath, 'success');
-                    imageCache[imagePath] = img;
-                    
-                    const progress = Math.round((loadedCount / totalImages) * 100);
-                    progressElement.textContent = `${progress}%`;
-                    
-                    if (loadedCount === totalImages) {
-                        // Все изображения загружены
-                        setTimeout(() => {
-                            loadingStatus.remove();
-                            resolve();
-                        }, 500);
-                    }
-                };
-                
-                img.onerror = () => {
-                    updateStatus(imagePath, 'error');
-                    console.error(`Ошибка загрузки изображения: ${imagePath}`);
-                    
-                    if (typeof logError === 'function') {
-                        logError(`Не удалось загрузить изображение: ${imagePath}`);
-                    }
-                    
-                    // Увеличиваем счетчик, даже если изображение не загрузилось
-                    loadedCount++;
-                    
-                    const progress = Math.round((loadedCount / totalImages) * 100);
-                    progressElement.textContent = `${progress}%`;
-                    
-                    if (loadedCount === totalImages) {
-                        // Завершаем даже при наличии ошибок
-                        setTimeout(() => {
-                            loadingStatus.remove();
-                            reject(new Error('Failed to load images. Check if images folder exists'));
-                        }, 500);
-                    }
-                };
-                
-                // Добавляем случайный параметр для предотвращения кеширования
-                img.src = `${imagePath}?t=${Date.now()}`;
-            });
-        };
+    return new Promise((resolve) => {
+        let loadedCount = 0;
+        const totalImages = requiredImages.length;
         
-        testImg.onerror = () => {
-            // Каталог недоступен или проблемы с доступом
-            loadingStatus.innerHTML = '<h3 style="color:#f44336;">Ошибка загрузки ресурсов</h3><p>Не удалось получить доступ к каталогу изображений</p><button id="retry-button" style="background:#4CAF50;">Повторить</button>';
+        // Функция для обработки загрузки изображения
+        const onImageLoad = (path) => {
+            loadedCount++;
+            const progress = Math.round((loadedCount / totalImages) * 100);
+            progressElement.textContent = `${progress}%`;
             
-            document.getElementById('retry-button').onclick = () => {
-                loadingStatus.remove();
-                checkAndLoadResources().then(resolve).catch(reject);
-            };
+            console.log(`Загружено изображение ${loadedCount}/${totalImages}: ${path}`);
             
-            if (typeof logError === 'function') {
-                logError('Недоступен каталог с изображениями images/');
+            // Когда все изображения обработаны, разрешаем промис
+            if (loadedCount === totalImages) {
+                console.log('Все ресурсы проверены');
+                
+                // Скрываем индикатор загрузки после небольшой задержки
+                setTimeout(() => {
+                    loadingStatus.style.display = 'none';
+                    resolve({ success: true });
+                }, 500);
             }
         };
         
-        // Проверяем доступность каталога
-        testImg.src = `images/snail_red.png?t=${Date.now()}`;
+        // Проверяем каждое изображение
+        requiredImages.forEach(path => {
+            const img = new Image();
+            
+            img.onload = () => {
+                // Изображение успешно загружено
+                onImageLoad(path);
+            };
+            
+            img.onerror = () => {
+                console.warn(`Не удалось загрузить изображение: ${path}`);
+                // Продолжаем даже при ошибках
+                onImageLoad(path);
+            };
+            
+            // Начинаем загрузку
+            img.src = path;
+        });
+        
+        // Если список пуст, сразу разрешаем промис
+        if (totalImages === 0) {
+            loadingStatus.style.display = 'none';
+            resolve({ success: true });
+        }
     });
+}
+
+/**
+ * Показывает экран гонки
+ */
+function showRaceScreen() {
+    console.log('Показываю экран гонки...');
+    
+    // Скрываем начальный экран
+    const startScreen = document.getElementById('start-screen');
+    if (startScreen) {
+        startScreen.classList.add('hidden');
+        startScreen.style.display = 'none';
+    }
+    
+    // Показываем экран гонки
+    const raceContainer = document.getElementById('race-container');
+    if (raceContainer) {
+        raceContainer.classList.remove('hidden');
+        raceContainer.style.display = 'block';
+    } else {
+        console.error('Ошибка: race-container не найден в DOM');
+        showError('Ошибка отображения', 'Элемент race-container не найден в DOM');
+        return;
+    }
+    
+    // Обновляем информацию о выбранной улитке
+    const selectedSnailInfo = document.getElementById('selected-snail-info');
+    if (selectedSnailInfo && selectedSnail) {
+        const snailType = SNAIL_TYPES[selectedSnail];
+        if (snailType) {
+            selectedSnailInfo.textContent = `Ваша улитка: ${snailType.name}`;
+            selectedSnailInfo.style.color = snailType.color;
+        } else {
+            selectedSnailInfo.textContent = `Ваша улитка: ${selectedSnail}`;
+        }
+    }
+    
+    // Адаптируем размер canvas
+    resizeCanvas();
+    
+    console.log('Экран гонки отображен');
+}
+
+/**
+ * Показывает сообщение об ошибке
+ * @param {string} message - Сообщение об ошибке
+ * @param {Error} [error] - Объект ошибки (необязательно)
+ */
+function showError(message, error) {
+    console.error(message, error);
+    
+    // Создаем элемент для отображения ошибки
+    let errorEl = document.getElementById('error-message');
+    if (!errorEl) {
+        errorEl = document.createElement('div');
+        errorEl.id = 'error-message';
+        errorEl.style.cssText = 'position: fixed; top: 10px; left: 50%; transform: translateX(-50%); background-color: #f44336; color: white; padding: 10px 20px; border-radius: 5px; z-index: 1000; max-width: 80%; text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,0.2);';
+        document.body.appendChild(errorEl);
+    }
+    
+    // Устанавливаем текст ошибки
+    errorEl.textContent = message;
+    
+    // Показываем на 5 секунд
+    errorEl.classList.remove('hidden');
+    setTimeout(() => {
+        errorEl.classList.add('hidden');
+    }, 5000);
 } 
