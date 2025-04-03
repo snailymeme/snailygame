@@ -343,7 +343,12 @@ class MazeGenerator {
                         currentKey = `${prev.x},${prev.y}`;
                     }
                     
-                    return path;
+                    // Удлиняем путь, добавляя случайные отклонения
+                    console.log(`Оригинальная длина пути: ${path.length}`);
+                    const extendedPath = this._extendPath(path);
+                    console.log(`Удлиненная длина пути: ${extendedPath.length} (увеличение на ${Math.round((extendedPath.length - path.length) / path.length * 100)}%)`);
+                    
+                    return extendedPath;
                 }
                 
                 // Удаляем текущую точку из openSet и добавляем в closedSet
@@ -428,6 +433,59 @@ class MazeGenerator {
     _heuristic(a, b) {
         // Используем манхэттенское расстояние
         return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+    }
+
+    /**
+     * Удлиняет путь, добавляя случайные отклонения и зигзаги
+     * @param {Array} originalPath - Исходный кратчайший путь
+     * @returns {Array} Удлиненный путь
+     * @private
+     */
+    _extendPath(originalPath) {
+        if (originalPath.length <= 2) {
+            return originalPath; // Слишком короткий путь не удлиняем
+        }
+        
+        // Создаем копию оригинального пути
+        const extendedPath = [...originalPath];
+        const targetLength = Math.floor(originalPath.length * 1.6); // Увеличиваем на 60%
+        
+        // Выбираем случайные точки на пути и добавляем "петли" вокруг них
+        let attemptsLeft = 50; // Ограничиваем количество попыток
+        
+        while (extendedPath.length < targetLength && attemptsLeft > 0) {
+            // Выбираем случайную точку, не начало и не конец
+            const randomIndex = Math.floor(Math.random() * (extendedPath.length - 2)) + 1;
+            const point = extendedPath[randomIndex];
+            
+            // Получаем возможные соседние точки, в которые можно пойти
+            const neighbors = this._getAccessibleNeighbors(point.x, point.y);
+            
+            // Убираем соседей, которые уже есть в пути рядом с точкой
+            const filteredNeighbors = neighbors.filter(neighbor => {
+                // Не идем в точки, которые уже есть в соседних позициях пути
+                return !(
+                    (extendedPath[randomIndex-1] && 
+                     extendedPath[randomIndex-1].x === neighbor.x && 
+                     extendedPath[randomIndex-1].y === neighbor.y) ||
+                    (extendedPath[randomIndex+1] && 
+                     extendedPath[randomIndex+1].x === neighbor.x && 
+                     extendedPath[randomIndex+1].y === neighbor.y)
+                );
+            });
+            
+            if (filteredNeighbors.length > 0) {
+                // Выбираем случайного соседа
+                const detour = filteredNeighbors[Math.floor(Math.random() * filteredNeighbors.length)];
+                
+                // Добавляем отклонение: туда и обратно
+                extendedPath.splice(randomIndex + 1, 0, detour, {...point});
+            }
+            
+            attemptsLeft--;
+        }
+        
+        return extendedPath;
     }
 
     /**

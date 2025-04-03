@@ -97,20 +97,38 @@ class Slug {
             return [];
         }
         
-        // Для типа "Тупичок" - шанс пойти в тупик или сгенерировать случайный путь
-        if (Math.random() < this.deadEndProbability) {
-            return this.findNearestDeadEnd();
-        } else if (Math.random() < this.randomTurnProbability) {
-            return this.generateRandomPath(5 + Math.floor(Math.random() * 5));
-        } else {
-            // Иначе пытаемся найти прямой путь к финишу
-            const path = this.maze.findPath(this.position, this.finishPosition);
-            if (path.length > 0) {
-                return path;
-            } else {
-                // Если путь не найден, генерируем случайный
-                return this.generateRandomPath(3 + Math.floor(Math.random() * 3));
+        try {
+            // Проверяем, существует ли SlugManager и имеет ли он метод findPathForSlug
+            if (window.slugManager && typeof window.slugManager.findPathForSlug === 'function') {
+                const path = window.slugManager.findPathForSlug(this, this.position, this.finishPosition, this.maze);
+                if (path && path.length > 0) {
+                    console.log(`Улитка типа ${this.type} получила удлиненный путь (${path.length} точек)`);
+                    return path;
+                }
             }
+            
+            // Если SlugManager недоступен или вернул пустой путь, используем стандартную логику
+            console.log(`Используем стандартную логику генерации пути для улитки типа ${this.type}`);
+            
+            // Для типа "Тупичок" - шанс пойти в тупик или сгенерировать случайный путь
+            if (Math.random() < this.deadEndProbability) {
+                return this.findNearestDeadEnd();
+            } else if (Math.random() < this.randomTurnProbability) {
+                return this.generateRandomPath(5 + Math.floor(Math.random() * 5));
+            } else {
+                // Иначе пытаемся найти прямой путь к финишу
+                const path = this.maze.findPath(this.position, this.finishPosition);
+                if (path.length > 0) {
+                    return path;
+                } else {
+                    // Если путь не найден, генерируем случайный
+                    return this.generateRandomPath(3 + Math.floor(Math.random() * 3));
+                }
+            }
+        } catch (error) {
+            console.error(`Ошибка при генерации пути для улитки типа ${this.type}:`, error);
+            // В случае ошибки, возвращаем базовый путь
+            return this.maze.findPath(this.position, this.finishPosition) || [];
         }
     }
     

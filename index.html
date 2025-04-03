@@ -179,50 +179,66 @@
         
         .snail-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            grid-template-columns: repeat(3, 1fr);
             gap: 15px;
             width: 100%;
             max-width: 600px;
             margin: 20px 0;
         }
+
+        .snail-grid-row {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            width: 100%;
+            margin-bottom: 15px;
+        }
+        
+        /* Добавляем специальные стили для второго ряда улиток */
+        .snail-grid-row.second-row {
+            justify-content: center;
+            max-width: 230px; /* Рассчитано на 2 улитки с отступами */
+            margin: 0 auto 15px;
+        }
         
         .snail-option {
-            background-color: #333;
-            border-radius: 10px;
-            padding: 10px;
+            background: linear-gradient(135deg, #f5c88e 0%, #e1a96e 100%);
+            border-radius: 20px;
+            padding: 15px;
             cursor: pointer;
             transition: transform 0.2s, box-shadow 0.2s;
             border: 2px solid transparent;
+            width: 100px;
+            height: 100px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            text-align: center;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
         }
         
         .snail-option:hover {
             transform: translateY(-3px);
-            box-shadow: 0 5px 10px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
         }
         
         .snail-option.selected {
             border-color: #FFD700;
-            box-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+            box-shadow: 0 0 15px rgba(255, 215, 0, 0.7);
         }
         
-        .snail-color {
-            width: 50px;
-            height: 50px;
-            border-radius: 50%;
-            margin: 0 auto 10px;
+        .snail-image {
+            width: 60px;
+            height: 60px;
+            margin-bottom: 5px;
         }
         
-        .snail-info h3 {
-            margin: 0 0 5px;
-            font-size: 16px;
-            text-align: center;
-        }
-        
-        .snail-info p {
+        .snail-name {
             margin: 0;
-            font-size: 12px;
-            color: #ccc;
-            text-align: center;
+            font-size: 14px;
+            font-weight: bold;
+            color: #333;
         }
         
         .buy-button {
@@ -391,8 +407,29 @@
             <h1>Snail to Riches</h1>
             <div id="snail-selection">
                 <h2>Choose your snail</h2>
-                <div class="snail-grid">
-                    <!-- Здесь будут варианты улиток -->
+                <div class="snail-grid-row">
+                    <div class="snail-option" data-type="racer">
+                        <img src="images/snail_red.png" alt="Racer" class="snail-image">
+                        <p class="snail-name">Racer</p>
+                    </div>
+                    <div class="snail-option" data-type="explorer">
+                        <img src="images/snail_blue.png" alt="Explorer" class="snail-image">
+                        <p class="snail-name">Explorer</p>
+                    </div>
+                    <div class="snail-option" data-type="snake">
+                        <img src="images/snail_green.png" alt="Snake" class="snail-image">
+                        <p class="snail-name">Snake</p>
+                    </div>
+                </div>
+                <div class="snail-grid-row second-row">
+                    <div class="snail-option" data-type="stubborn">
+                        <img src="images/snail_lilac.png" alt="Stubborn" class="snail-image">
+                        <p class="snail-name">Stubborn</p>
+                    </div>
+                    <div class="snail-option" data-type="deadender">
+                        <img src="images/snail_yellow.png" alt="Deadender" class="snail-image">
+                        <p class="snail-name">Deadender</p>
+                    </div>
                 </div>
             </div>
             <div id="betting-section">
