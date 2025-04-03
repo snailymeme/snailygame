@@ -6,7 +6,7 @@ const axios = require('axios');
 
 // Конфигурация
 const BOT_TOKEN = '7686647298:AAGmRnfGceCksKJUu8jk0e1dZOakgkn_V1s';
-const PORT = 3000;
+const PORT = 3001;
 
 // Создаем Express приложение
 const app = express();

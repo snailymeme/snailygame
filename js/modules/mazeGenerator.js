@@ -10,6 +10,7 @@ class MazeGenerator {
      * @param {number} height - Высота лабиринта (в ячейках)
      */
     constructor(width, height) {
+        console.log(`MazeGenerator: создание генератора ${width}x${height}`);
         this.width = width;
         this.height = height;
         this.grid = [];
@@ -25,6 +26,8 @@ class MazeGenerator {
      * @returns {Object} Объект лабиринта с сеткой и позициями старта/финиша
      */
     generate(options = {}) {
+        console.log('MazeGenerator: начало генерации лабиринта с параметрами:', options);
+        
         const defaultOptions = {
             complexity: 0.5,
             branchFactor: 0.5, 
@@ -33,6 +36,7 @@ class MazeGenerator {
         };
         
         const config = { ...defaultOptions, ...options };
+        console.log('MazeGenerator: итоговая конфигурация:', config);
         
         // Инициализация сетки с закрытыми стенами
         this._initializeGrid();
@@ -40,6 +44,8 @@ class MazeGenerator {
         // Выбор стартовой точки
         let startX = config.randomStart ? Math.floor(Math.random() * this.width) : 0;
         let startY = config.randomStart ? Math.floor(Math.random() * this.height) : 0;
+        
+        console.log(`MazeGenerator: начальная точка генерации (${startX}, ${startY})`);
         
         // Генерация лабиринта с помощью рекурсивного алгоритма
         this._carvePathFrom(startX, startY, config);
@@ -62,16 +68,24 @@ class MazeGenerator {
             finish = { x: this.width - 1, y: this.height - 1 };
         }
         
+        console.log(`MazeGenerator: позиции старта (${start.x}, ${start.y}) и финиша (${finish.x}, ${finish.y})`);
+        
         // Убедимся, что у старта и финиша есть проходы
         this._ensureAccessibility(start, finish);
         
-        return {
+        // Проверка на корректность генерации
+        this._validateMaze();
+        
+        const maze = {
             grid: this.grid,
             startPoint: start,
             finishPoint: finish,
             width: this.width,
             height: this.height
         };
+        
+        console.log('MazeGenerator: лабиринт успешно сгенерирован');
+        return maze;
     }
 
     /**
@@ -441,6 +455,64 @@ class MazeGenerator {
         }
         
         return deadEnds;
+    }
+
+    /**
+     * Проверяет сгенерированный лабиринт на корректность
+     * @private
+     */
+    _validateMaze() {
+        let hasErrors = false;
+        
+        // Проверяем размерность сетки
+        if (this.grid.length !== this.height) {
+            console.error(`Ошибка валидации: неверная высота сетки (${this.grid.length} вместо ${this.height})`);
+            hasErrors = true;
+        }
+        
+        // Проверяем каждую строку
+        for (let y = 0; y < this.grid.length; y++) {
+            const row = this.grid[y];
+            
+            if (row.length !== this.width) {
+                console.error(`Ошибка валидации: неверная ширина строки ${y} (${row.length} вместо ${this.width})`);
+                hasErrors = true;
+            }
+            
+            // Проверяем каждую ячейку
+            for (let x = 0; x < row.length; x++) {
+                const cell = row[x];
+                
+                // Проверяем, что ячейка имеет все необходимые свойства
+                if (!cell.walls || typeof cell.walls !== 'object') {
+                    console.error(`Ошибка валидации: отсутствуют стены в ячейке (${x}, ${y})`);
+                    hasErrors = true;
+                }
+                
+                // Проверяем консистентность стен с соседними ячейками
+                if (x > 0) {
+                    const leftCell = row[x-1];
+                    if (cell.walls.left !== leftCell.walls.right) {
+                        console.error(`Ошибка валидации: несоответствие стен между (${x}, ${y}) и (${x-1}, ${y})`);
+                        hasErrors = true;
+                    }
+                }
+                
+                if (y > 0) {
+                    const topCell = this.grid[y-1][x];
+                    if (cell.walls.top !== topCell.walls.bottom) {
+                        console.error(`Ошибка валидации: несоответствие стен между (${x}, ${y}) и (${x}, ${y-1})`);
+                        hasErrors = true;
+                    }
+                }
+            }
+        }
+        
+        if (hasErrors) {
+            console.warn('MazeGenerator: обнаружены ошибки в сгенерированном лабиринте');
+        } else {
+            console.log('MazeGenerator: лабиринт успешно прошел валидацию');
+        }
     }
 }
 

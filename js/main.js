@@ -475,6 +475,12 @@ function loadGameImages() {
         let loadedCount = 0;
         const totalImages = imagesToLoad.length;
         
+        // Проверяем, доступна ли функция корректировки путей
+        const shouldCorrectPaths = window.correctImagePath && typeof window.correctImagePath === 'function';
+        if (shouldCorrectPaths) {
+            console.log('Будет использована функция коррекции путей для загрузки изображений');
+        }
+        
         // Функция для отслеживания прогресса загрузки
         const onImageLoad = (path) => {
             loadedCount++;
@@ -483,6 +489,14 @@ function loadGameImages() {
             // Когда все изображения загружены, разрешаем промис
             if (loadedCount === totalImages) {
                 console.log('Все изображения успешно загружены');
+                
+                // Проверим все загруженные изображения и их размеры
+                console.log('Проверка всех загруженных изображений:');
+                Object.keys(imageCache).forEach(key => {
+                    const img = imageCache[key];
+                    console.log(`- ${key}: ${img.width}x${img.height}, complete=${img.complete}`);
+                });
+                
                 resolve(imageCache);
             }
         };
@@ -491,37 +505,108 @@ function loadGameImages() {
         imagesToLoad.forEach(path => {
             // Если изображение уже загружено, просто увеличиваем счетчик
             if (imageCache[path] && imageCache[path].complete) {
+                console.log(`Изображение ${path} уже загружено в кэш.`);
                 onImageLoad(path);
                 return;
             }
+            
+            // Корректируем путь, если нужно
+            const correctedPath = shouldCorrectPaths ? window.correctImagePath(path) : path;
             
             const img = new Image();
             
             // Устанавливаем обработчики до установки src!
             img.onload = () => {
-                imageCache[path] = img;
+                console.log(`Успешно загружено изображение: ${correctedPath} (${img.width}x${img.height})`);
+                imageCache[path] = img; // Сохраняем с оригинальным путем для совместимости
                 onImageLoad(path);
             };
             
             img.onerror = (error) => {
-                console.error(`Ошибка загрузки изображения ${path}:`, error);
+                console.error(`Ошибка загрузки изображения ${correctedPath}:`, error);
+                console.error(`URL изображения: ${img.src}`);
                 
-                // Создаем пустое изображение вместо ошибки
-                const emptyImg = new Image(40, 40);
-                emptyImg.width = 40;
-                emptyImg.height = 40;
-                imageCache[path] = emptyImg;
+                // Пробуем альтернативный путь, если путь уже был скорректирован
+                if (window.alternativeImageBasePath && correctedPath !== path) {
+                    const altPath = window.alternativeImageBasePath + path.replace(/^\//, '');
+                    console.log(`Пробуем загрузить с альтернативного пути: ${altPath}`);
+                    
+                    const altImg = new Image();
+                    altImg.onload = () => {
+                        console.log(`Успешно загружено изображение с альтернативного пути: ${altPath}`);
+                        imageCache[path] = altImg;
+                        onImageLoad(path);
+                    };
+                    
+                    altImg.onerror = () => {
+                        console.error(`Не удалось загрузить изображение даже с альтернативного пути: ${altPath}`);
+                        createFallbackImage(path);
+                    };
+                    
+                    altImg.src = altPath;
+                    return;
+                }
                 
-                // Продолжаем, несмотря на ошибку
-                onImageLoad(path);
+                // Если нет альтернативных путей или изображение не было загружено, создаем заменитель
+                createFallbackImage(path);
             };
             
-            // Загружаем изображение напрямую, без кэширования
-            img.src = path;
+            // Функция для создания изображения-заменителя
+            function createFallbackImage(path) {
+                // Создаем цветной квадрат вместо изображения
+                const canvas = document.createElement('canvas');
+                canvas.width = 40;
+                canvas.height = 40;
+                const ctx = canvas.getContext('2d');
+                
+                // Используем разные цвета для разных типов изображений
+                if (path.includes('wall')) {
+                    ctx.fillStyle = '#8B4513'; // Коричневый для стен
+                } else if (path.includes('snail')) {
+                    ctx.fillStyle = '#FF5733'; // Оранжевый для улиток
+                } else if (path.includes('start')) {
+                    ctx.fillStyle = '#4CAF50'; // Зеленый для старта
+                } else if (path.includes('finish')) {
+                    ctx.fillStyle = '#F44336'; // Красный для финиша
+                } else {
+                    ctx.fillStyle = '#9C27B0'; // Фиолетовый для прочего
+                }
+                
+                ctx.fillRect(0, 0, 40, 40);
+                
+                // Добавляем текст на canvas
+                ctx.fillStyle = 'white';
+                ctx.font = '10px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('Err', 20, 25);
+                
+                // Преобразуем canvas в изображение
+                const imgFromCanvas = new Image();
+                imgFromCanvas.src = canvas.toDataURL();
+                imgFromCanvas.width = 40;
+                imgFromCanvas.height = 40;
+                imageCache[path] = imgFromCanvas;
+                
+                console.log(`Создан заменитель для изображения ${path}`);
+                onImageLoad(path);
+            }
+            
+            // Загружаем изображение
+            console.log(`Начинаю загрузку изображения: ${correctedPath}`);
+            img.src = correctedPath;
+            
+            // Добавляем таймаут для проверки загрузки
+            setTimeout(() => {
+                if (!img.complete && !imageCache[path]) {
+                    console.warn(`Превышен таймаут загрузки для ${correctedPath}, создаем заменитель`);
+                    createFallbackImage(path);
+                }
+            }, 5000); // 5 секунд таймаут
         });
         
         // Если нет изображений для загрузки, сразу разрешаем промис
         if (totalImages === 0) {
+            console.log('Нет изображений для загрузки!');
             resolve(imageCache);
         }
     });
@@ -1202,6 +1287,10 @@ function render() {
         // Очищаем холст
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
+        // Фоновый цвет для проверки прозрачности
+        ctx.fillStyle = '#222222';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
         // Отрисовываем лабиринт
         drawMaze();
         
@@ -1212,22 +1301,50 @@ function render() {
 
 // Отрисовка лабиринта
 function drawMaze() {
-    if (!maze || !ctx || !canvas) return;
+    console.log('Вызвана функция drawMaze()');
+    
+    if (!maze) {
+        console.error('Ошибка: maze не определен при отрисовке лабиринта');
+        return;
+    }
+    
+    if (!ctx) {
+        console.error('Ошибка: ctx (контекст рисования) не определен при отрисовке лабиринта');
+        return;
+    }
+    
+    if (!canvas) {
+        console.error('Ошибка: canvas не определен при отрисовке лабиринта');
+        return;
+    }
+    
+    console.log(`Canvas размеры: ${canvas.width}x${canvas.height}`);
+    console.log(`Размеры лабиринта: ${maze.width}x${maze.height}`);
     
     const cellSize = Math.min(
         canvas.width / maze.width,
         canvas.height / maze.height
     );
     
+    console.log(`Размер ячейки: ${cellSize}px`);
+    
     // Получаем цвета из стиля лабиринта
     const pathColor = maze.getPathColor();
     const wallColor = maze.getWallColor();
     
+    console.log(`Цвета лабиринта: путь=${pathColor}, стена=${wallColor}`);
+    
     // Очищаем canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
+    // Фоновый цвет для проверки прозрачности
+    ctx.fillStyle = '#222222';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
     // Добавляем фоновый эффект в зависимости от стиля
     if (maze.style && maze.style.name) {
+        console.log(`Применяется стиль лабиринта: ${maze.style.name}`);
+        
         const style = maze.style;
         
         // Специальные фоновые эффекты для определенных стилей
@@ -1249,6 +1366,8 @@ function drawMaze() {
     }
     
     // Рисуем сетку и стены
+    console.log('Начинаю отрисовку ячеек лабиринта...');
+    
     for (let y = 0; y < maze.height; y++) {
         for (let x = 0; x < maze.width; x++) {
             const cell = maze.grid[y][x];
@@ -1335,10 +1454,13 @@ function drawMaze() {
     }
     
     // Рисуем старт и финиш
+    console.log(`Отрисовка старта и финиша: старт=(${maze.startPoint.x},${maze.startPoint.y}), финиш=(${maze.finishPoint.x},${maze.finishPoint.y})`);
+    
     const startImg = imageCache[IMAGE_PATHS.start];
     const finishImg = imageCache[IMAGE_PATHS.finish];
     
     if (startImg) {
+        console.log(`Отрисовка изображения старта: ${IMAGE_PATHS.start}`);
         ctx.drawImage(
             startImg,
             maze.startPoint.x * cellSize,
@@ -1347,6 +1469,7 @@ function drawMaze() {
             cellSize
         );
     } else {
+        console.warn(`Изображение старта не найдено в кэше: ${IMAGE_PATHS.start}`);
         // Резервный вариант для старта, если изображение не загружено
         ctx.fillStyle = '#00FF00';
         ctx.fillRect(
@@ -1358,6 +1481,7 @@ function drawMaze() {
     }
     
     if (finishImg) {
+        console.log(`Отрисовка изображения финиша: ${IMAGE_PATHS.finish}`);
         ctx.drawImage(
             finishImg,
             maze.finishPoint.x * cellSize,
@@ -1366,6 +1490,7 @@ function drawMaze() {
             cellSize
         );
     } else {
+        console.warn(`Изображение финиша не найдено в кэше: ${IMAGE_PATHS.finish}`);
         // Резервный вариант для финиша, если изображение не загружено
         ctx.fillStyle = '#FF0000';
         ctx.fillRect(
@@ -1375,6 +1500,8 @@ function drawMaze() {
             cellSize * 0.8
         );
     }
+    
+    console.log('Отрисовка лабиринта завершена');
 }
 
 // Сброс игры для повторной игры

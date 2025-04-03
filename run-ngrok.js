@@ -20,16 +20,21 @@ async function cleanup() {
   }
 }
 
+let ngrokProcess;
+
 // Основная функция запуска
 async function startNgrok() {
   try {
     // Очистка
     await cleanup();
     
+    // Указываем порт 3001 вместо 3000
+    const port = 3001;
+    
     // Запуск туннеля
     console.log('>> Запуск туннеля...');
     const url = await ngrok.connect({
-      addr: 3000,
+      addr: port,
       authtoken: '2vB1076Y3cPh8Kif6NVuDIV8eAi_2Vnu9ZFtY3SQSQ4bUQCj1'
     });
     

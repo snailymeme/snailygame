@@ -21,6 +21,100 @@
     <!-- Для интеграции с Telegram Web Apps -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     
+    <!-- Скрипт для исправления путей к изображениям в Telegram Web App -->
+    <script>
+        // Функция для исправления путей к изображениям в контексте Telegram Web App
+        window.fixImagePaths = function() {
+            console.log('Проверка и исправление путей к изображениям...');
+            
+            // Определяем базовый URL приложения
+            let baseUrl = window.location.origin;
+            const pathParts = window.location.pathname.split('/');
+            
+            // Если мы в Telegram Web App, путь может быть не корнем
+            if (window.Telegram && window.Telegram.WebApp) {
+                console.log('Обнаружен Telegram Web App, исправляем пути...');
+                
+                // Проверяем, есть ли в URL ngrok или другой домен
+                if (window.location.hostname.includes('ngrok')) {
+                    // В случае ngrok стараемся использовать полный путь
+                    baseUrl = window.location.origin;
+                    console.log('Используем ngrok baseUrl:', baseUrl);
+                }
+                
+                // Выводим информацию о текущих путях
+                console.log('Текущий путь:', window.location.pathname);
+                console.log('Базовый URL:', baseUrl);
+                
+                // Функция для корректировки пути к изображению
+                window.correctImagePath = function(path) {
+                    // Если путь уже абсолютный, не меняем его
+                    if (path.startsWith('http') || path.startsWith('//')) {
+                        return path;
+                    }
+                    
+                    // Убираем начальный слеш, если он есть
+                    const cleanPath = path.replace(/^\//, '');
+                    
+                    // Формируем полный путь
+                    return `${baseUrl}/${cleanPath}`;
+                };
+                
+                // Создаем тестовое изображение для проверки доступности
+                function testImageAvailability(path) {
+                    return new Promise((resolve) => {
+                        const img = new Image();
+                        const originalPath = path;
+                        const correctedPath = window.correctImagePath(path);
+                        
+                        img.onload = () => {
+                            console.log(`✅ Изображение доступно: ${correctedPath}`);
+                            resolve({ success: true, path: correctedPath });
+                        };
+                        
+                        img.onerror = () => {
+                            console.error(`❌ Изображение недоступно: ${correctedPath}`);
+                            resolve({ success: false, path: correctedPath, originalPath });
+                        };
+                        
+                        img.src = correctedPath;
+                    });
+                }
+                
+                // Тестируем доступность всех основных изображений
+                const imagesToTest = [
+                    'images/snail_red.png',
+                    'images/wall_texture.png',
+                    'images/start.png',
+                    'images/finish.png'
+                ];
+                
+                console.log('Проверка доступности изображений...');
+                
+                Promise.all(imagesToTest.map(path => testImageAvailability(path)))
+                    .then(results => {
+                        // Подсчитываем, сколько изображений доступны
+                        const availableCount = results.filter(r => r.success).length;
+                        
+                        console.log(`Доступно ${availableCount} из ${results.length} изображений`);
+                        
+                        if (availableCount === 0) {
+                            console.error('Ни одно изображение не доступно! Возможно, неправильный путь к каталогу изображений.');
+                            // Пробуем корректировать пути другими способами
+                            window.alternativeImageBasePath = `${baseUrl}/`;
+                            console.log('Установлен альтернативный путь к изображениям:', window.alternativeImageBasePath);
+                        }
+                    });
+            }
+        };
+        
+        // Выполняем исправление путей, когда DOM загружен
+        document.addEventListener('DOMContentLoaded', function() {
+            // Небольшая задержка, чтобы дать время Telegram WebApp инициализироваться
+            setTimeout(window.fixImagePaths, 500);
+        });
+    </script>
+    
     <!-- Модули для работы с лабиринтами и улитками -->
     <script src="js/modules/mazeGenerator.js"></script>
     <script src="js/modules/slug.js"></script>

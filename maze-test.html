@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Maze Test Page</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background-color: #222;
+            color: #fff;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            text-align: center;
+        }
+        #canvas-container {
+            width: 100%;
+            max-width: 640px;
+            height: 640px;
+            margin: 20px auto;
+            background-color: #111;
+            position: relative;
+            border: 1px solid #444;
+        }
+        canvas {
+            display: block;
+            margin: 0 auto;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        pre {
+            background-color: #333;
+            padding: 10px;
+            text-align: left;
+            overflow: auto;
+            max-height: 200px;
+            border-radius: 4px;
+        }
+        .log-panel {
+            text-align: left;
+            margin-top: 20px;
+            background-color: #333;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            height: 150px;
+            overflow-y: auto;
+        }
+        .log-entry {
+            margin: 5px 0;
+            font-family: monospace;
+        }
+        .log-error { color: #ff5252; }
+        .log-warn { color: #ffc107; }
+        .log-info { color: #2196f3; }
+        .log-success { color: #4caf50; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Maze Test Page</h1>
+        
+        <div class="log-panel" id="log-panel">
+            <div class="log-entry log-info">Консоль отладки...</div>
+        </div>
+        
+        <div id="canvas-container">
+            <canvas id="test-canvas" width="640" height="640"></canvas>
+        </div>
+        
+        <div class="controls">
+            <button id="generate-btn">Generate Maze</button>
+            <button id="draw-btn">Draw Maze</button>
+            <button id="path-btn">Find Path</button>
+            <button id="clear-btn">Clear Canvas</button>
+        </div>
+        
+        <div class="info-panel" id="info-panel">
+            <h3>Информация о лабиринте</h3>
+            <pre id="maze-info">Лабиринт не создан</pre>
+        </div>
+    </div>
+
+    <!-- Скрипты приложения -->
+    <!-- Пробуем несколько возможных путей к скрипту -->
+    <script>
+        // Функция для проверки и загрузки скриптов
+        function loadScript(url, callback) {
+            console.log(`Попытка загрузить скрипт: ${url}`);
+            const script = document.createElement('script');
+            script.type = 'text/javascript';
+            script.src = url;
+            script.onload = function() {
+                console.log(`Скрипт ${url} успешно загружен`);
+                callback(true);
+            };
+            script.onerror = function() {
+                console.error(`Ошибка загрузки скрипта: ${url}`);
+                callback(false);
+            };
+            document.head.appendChild(script);
+        }
+        
+        // Пути к возможным скриптам
+        const scriptPaths = [
+            'js/modules/mazeGenerator.js',
+            '/js/modules/mazeGenerator.js',
+            '../js/modules/mazeGenerator.js',
+            '../../js/modules/mazeGenerator.js',
+            '/snail-to-riches/js/modules/mazeGenerator.js'
+        ];
+        
+        let scriptLoaded = false;
+        
+        // Пробуем загрузить скрипт из разных местоположений
+        function tryLoadScript(index) {
+            if (index >= scriptPaths.length) {
+                console.error("Не удалось загрузить MazeGenerator. Используем встроенную версию.");
+                // Если скрипт не загружен, определим его здесь
+                defineFallbackMazeGenerator();
+                initializePage();
+                return;
+            }
+            
+            loadScript(scriptPaths[index], function(success) {
+                if (success) {
+                    scriptLoaded = true;
+                    console.log("MazeGenerator успешно загружен");
+                    initializePage();
+                } else {
+                    tryLoadScript(index + 1);
+                }
+            });
+        }
+        
+        // Определение резервной версии MazeGenerator
+        function defineFallbackMazeGenerator() {
+            console.warn("Используется резервная (упрощенная) версия MazeGenerator");
+            
+            // Упрощенная версия MazeGenerator
+            window.MazeGenerator = class MazeGenerator {
+                constructor(width, height) {
+                    console.log(`MazeGenerator (резервный): создание генератора ${width}x${height}`);
+                    this.width = width;
+                    this.height = height;
+                    this.grid = [];
+                }
+                
+                generate(options = {}) {
+                    console.log('MazeGenerator (резервный): начало генерации лабиринта');
+                    
+                    // Инициализация сетки
+                    this.grid = [];
+                    for (let y = 0; y < this.height; y++) {
+                        const row = [];
+                        for (let x = 0; x < this.width; x++) {
+                            row.push({
+                                x,
+                                y,
+                                walls: {
+                                    top: Math.random() > 0.7,
+                                    right: Math.random() > 0.7,
+                                    bottom: Math.random() > 0.7,
+                                    left: Math.random() > 0.7
+                                },
+                                visited: true
+                            });
+                        }
+                        this.grid.push(row);
+                    }
+                    
+                    // Гарантируем проходимость лабиринта
+                    for (let y = 0; y < this.height; y++) {
+                        for (let x = 0; x < this.width; x++) {
+                            // Убедимся, что у каждой клетки есть хотя бы один выход
+                            const walls = this.grid[y][x].walls;
+                            if (walls.top && walls.right && walls.bottom && walls.left) {
+                                const randomWall = ['top', 'right', 'bottom', 'left'][Math.floor(Math.random() * 4)];
+                                walls[randomWall] = false;
+                            }
+                        }
+                    }
+                    
+                    return {
+                        grid: this.grid,
+                        startPoint: { x: 0, y: 0 },
+                        finishPoint: { x: this.width - 1, y: this.height - 1 },
+                        width: this.width,
+                        height: this.height
+                    };
+                }
+            };
+        }
+        
+        // Начнем загрузку скрипта
+        tryLoadScript(0);
+    </script>
+    
+    <script>
+        // Основной код страницы, будет выполнен после загрузки скрипта
+        function initializePage() {
+            // Перенаправление консольных сообщений в элемент log-panel
+            const logPanel = document.getElementById('log-panel');
+            const originalConsole = {
+                log: console.log,
+                error: console.error,
+                warn: console.warn,
+                info: console.info
+            };
+            
+            // Модифицируем нативные методы консоли
+            console.log = function(...args) {
+                addLogEntry('info', args);
+                originalConsole.log.apply(console, args);
+            };
+            
+            console.error = function(...args) {
+                addLogEntry('error', args);
+                originalConsole.error.apply(console, args);
+            };
+            
+            console.warn = function(...args) {
+                addLogEntry('warn', args);
+                originalConsole.warn.apply(console, args);
+            };
+            
+            console.info = function(...args) {
+                addLogEntry('info', args);
+                originalConsole.info.apply(console, args);
+            };
+            
+            function addLogEntry(type, args) {
+                const entry = document.createElement('div');
+                entry.className = `log-entry log-${type}`;
+                entry.textContent = args.map(arg => 
+                    typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
+                ).join(' ');
+                logPanel.appendChild(entry);
+                
+                // Прокрутка вниз
+                logPanel.scrollTop = logPanel.scrollHeight;
+            }
+            
+            // Определяем основные переменные
+            let maze = null;
+            const canvas = document.getElementById('test-canvas');
+            const ctx = canvas.getContext('2d');
+            const generateBtn = document.getElementById('generate-btn');
+            const drawBtn = document.getElementById('draw-btn');
+            const pathBtn = document.getElementById('path-btn');
+            const clearBtn = document.getElementById('clear-btn');
+            const mazeInfo = document.getElementById('maze-info');
+            
+            // Класс лабиринта для тестирования
+            class Maze {
+                constructor(width, height, style = null) {
+                    this.width = width;
+                    this.height = height;
+                    this.grid = [];
+                    this.startPoint = { x: 0, y: 0 };
+                    this.finishPoint = { x: width - 1, y: height - 1 };
+                    
+                    this.style = style || {
+                        name: "Default Style",
+                        path: { color: "#CCCCCC", effect: "none" },
+                        wall: { color: "#333333", effect: "none" },
+                        entity: { color: "#FFFFFF", effect: "none" }
+                    };
+                    
+                    console.log(`Создан объект лабиринта размером ${width}x${height}`);
+                }
+                
+                // Генерация лабиринта с использованием MazeGenerator
+                generate(options) {
+                    try {
+                        console.log('Начинаем генерацию лабиринта...');
+                        
+                        const generator = new MazeGenerator(this.width, this.height);
+                        const result = generator.generate(options);
+                        
+                        this.grid = result.grid;
+                        this.startPoint = result.startPoint;
+                        this.finishPoint = result.finishPoint;
+                        
+                        console.log('Лабиринт сгенерирован успешно', {
+                            width: this.width,
+                            height: this.height,
+                            startPoint: this.startPoint,
+                            finishPoint: this.finishPoint
+                        });
+                        
+                        return true;
+                    } catch (error) {
+                        console.error('Ошибка при генерации лабиринта:', error);
+                        return false;
+                    }
+                }
+                
+                // Получение цвета пути
+                getPathColor() {
+                    return this.style?.path?.color || "#CCCCCC";
+                }
+                
+                // Получение цвета стены
+                getWallColor() {
+                    return this.style?.wall?.color || "#333333";
+                }
+                
+                // Проверка на наличие эффекта
+                hasEffect(elementType, effectName) {
+                    return this.style && 
+                           this.style[elementType] && 
+                           this.style[elementType].effect === effectName;
+                }
+            }
+            
+            // Отрисовка лабиринта
+            function drawMaze() {
+                if (!maze || !ctx) {
+                    console.error('Лабиринт или контекст не инициализированы');
+                    return;
+                }
+                
+                console.log('Начинаем отрисовку лабиринта', { 
+                    width: maze.width, 
+                    height: maze.height,
+                    canvasWidth: canvas.width,
+                    canvasHeight: canvas.height 
+                });
+                
+                // Очищаем холст
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                // Задаем параметры отрисовки
+                const cellSize = Math.min(
+                    canvas.width / maze.width,
+                    canvas.height / maze.height
+                );
+                
+                const pathColor = maze.getPathColor();
+                const wallColor = maze.getWallColor();
+                
+                console.log(`Размер ячейки: ${cellSize}px, цвета: путь=${pathColor}, стена=${wallColor}`);
+                
+                // Заполняем фон
+                ctx.fillStyle = '#111';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // Рисуем сетку и стены
+                for (let y = 0; y < maze.height; y++) {
+                    for (let x = 0; x < maze.width; x++) {
+                        const cell = maze.grid[y][x];
+                        const cellX = x * cellSize;
+                        const cellY = y * cellSize;
+                        
+                        // Рисуем фон ячейки
+                        ctx.fillStyle = pathColor;
+                        ctx.fillRect(cellX, cellY, cellSize, cellSize);
+                        
+                        // Рисуем стены
+                        ctx.strokeStyle = wallColor;
+                        ctx.lineWidth = 2;
+                        
+                        if (cell.walls.top) {
+                            ctx.beginPath();
+                            ctx.moveTo(cellX, cellY);
+                            ctx.lineTo(cellX + cellSize, cellY);
+                            ctx.stroke();
+                        }
+                        
+                        if (cell.walls.right) {
+                            ctx.beginPath();
+                            ctx.moveTo(cellX + cellSize, cellY);
+                            ctx.lineTo(cellX + cellSize, cellY + cellSize);
+                            ctx.stroke();
+                        }
+                        
+                        if (cell.walls.bottom) {
+                            ctx.beginPath();
+                            ctx.moveTo(cellX, cellY + cellSize);
+                            ctx.lineTo(cellX + cellSize, cellY + cellSize);
+                            ctx.stroke();
+                        }
+                        
+                        if (cell.walls.left) {
+                            ctx.beginPath();
+                            ctx.moveTo(cellX, cellY);
+                            ctx.lineTo(cellX, cellY + cellSize);
+                            ctx.stroke();
+                        }
+                    }
+                }
+                
+                // Рисуем старт и финиш
+                ctx.fillStyle = '#00FF00';  // зеленый для старта
+                ctx.fillRect(
+                    maze.startPoint.x * cellSize + cellSize * 0.2,
+                    maze.startPoint.y * cellSize + cellSize * 0.2,
+                    cellSize * 0.6,
+                    cellSize * 0.6
+                );
+                
+                ctx.fillStyle = '#FF0000';  // красный для финиша
+                ctx.fillRect(
+                    maze.finishPoint.x * cellSize + cellSize * 0.2,
+                    maze.finishPoint.y * cellSize + cellSize * 0.2,
+                    cellSize * 0.6,
+                    cellSize * 0.6
+                );
+                
+                console.log('Отрисовка лабиринта завершена');
+            }
+            
+            // Поиск пути в лабиринте
+            function findPath() {
+                if (!maze) {
+                    console.error('Лабиринт не инициализирован');
+                    return;
+                }
+                
+                console.log('Начинаем поиск пути...');
+                
+                // Очень простая реализация A* для тестирования
+                const start = maze.startPoint;
+                const end = maze.finishPoint;
+                
+                // Создаем массив для отслеживания посещенных ячеек
+                const visited = Array(maze.height).fill().map(() => Array(maze.width).fill(false));
+                const queue = [{ x: start.x, y: start.y, path: [] }];
+                
+                // Простая heuristic-функция (расстояние Манхеттена)
+                function heuristic(x, y) {
+                    return Math.abs(x - end.x) + Math.abs(y - end.y);
+                }
+                
+                // Соседние ячейки
+                function getNeighbors(x, y) {
+                    const neighbors = [];
+                    const cell = maze.grid[y][x];
+                    
+                    // Проверяем отсутствие стен
+                    if (!cell.walls.top && y > 0) neighbors.push({ x, y: y - 1 });
+                    if (!cell.walls.right && x < maze.width - 1) neighbors.push({ x: x + 1, y });
+                    if (!cell.walls.bottom && y < maze.height - 1) neighbors.push({ x, y: y + 1 });
+                    if (!cell.walls.left && x > 0) neighbors.push({ x: x - 1, y });
+                    
+                    return neighbors;
+                }
+                
+                console.log(`Поиск пути от (${start.x},${start.y}) до (${end.x},${end.y})`);
+                
+                // Основной алгоритм
+                let found = false;
+                let iterations = 0;
+                const MAX_ITERATIONS = 10000;
+                
+                while (queue.length > 0 && iterations < MAX_ITERATIONS) {
+                    iterations++;
+                    
+                    // Сортируем очередь по эвристике
+                    queue.sort((a, b) => {
+                        const aScore = a.path.length + heuristic(a.x, a.y);
+                        const bScore = b.path.length + heuristic(b.x, b.y);
+                        return aScore - bScore;
+                    });
+                    
+                    const current = queue.shift();
+                    
+                    // Проверяем, достигли ли финиша
+                    if (current.x === end.x && current.y === end.y) {
+                        console.log(`Путь найден за ${iterations} итераций. Длина пути: ${current.path.length}`);
+                        console.log('Путь:', current.path);
+                        
+                        // Отрисовываем путь
+                        const cellSize = Math.min(
+                            canvas.width / maze.width,
+                            canvas.height / maze.height
+                        );
+                        
+                        ctx.fillStyle = 'rgba(255, 255, 0, 0.5)';
+                        for (const step of current.path) {
+                            ctx.fillRect(
+                                step.x * cellSize + cellSize * 0.25,
+                                step.y * cellSize + cellSize * 0.25,
+                                cellSize * 0.5,
+                                cellSize * 0.5
+                            );
+                        }
+                        
+                        found = true;
+                        break;
+                    }
+                    
+                    // Отмечаем ячейку как посещенную
+                    visited[current.y][current.x] = true;
+                    
+                    // Получаем соседей
+                    const neighbors = getNeighbors(current.x, current.y);
+                    
+                    for (const neighbor of neighbors) {
+                        if (!visited[neighbor.y][neighbor.x]) {
+                            const newPath = [...current.path, { x: current.x, y: current.y }];
+                            queue.push({ x: neighbor.x, y: neighbor.y, path: newPath });
+                        }
+                    }
+                }
+                
+                if (!found) {
+                    console.error(`Не удалось найти путь за ${iterations} итераций`);
+                }
+            }
+            
+            // Очистка холста
+            function clearCanvas() {
+                if (ctx) {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    mazeInfo.textContent = 'Холст очищен';
+                }
+            }
+            
+            // Обновление информации о лабиринте
+            function updateMazeInfo() {
+                if (!maze) {
+                    mazeInfo.textContent = 'Лабиринт не создан';
+                    return;
+                }
+                
+                const info = {
+                    width: maze.width,
+                    height: maze.height,
+                    startPoint: maze.startPoint,
+                    finishPoint: maze.finishPoint,
+                    style: maze.style.name,
+                    cellCount: maze.width * maze.height,
+                    gridInitialized: Array.isArray(maze.grid) && maze.grid.length > 0
+                };
+                
+                mazeInfo.textContent = JSON.stringify(info, null, 2);
+            }
+            
+            // Обработчики событий
+            generateBtn.addEventListener('click', () => {
+                console.log('Создаем новый лабиринт...');
+                
+                maze = new Maze(20, 20);
+                
+                const result = maze.generate({
+                    complexity: 0.5,
+                    branchFactor: 0.3,
+                    randomStart: false,
+                    randomFinish: false
+                });
+                
+                if (result) {
+                    updateMazeInfo();
+                    console.log('Лабиринт успешно создан. Нажмите "Draw Maze" для отрисовки.');
+                } else {
+                    console.error('Не удалось создать лабиринт');
+                }
+            });
+            
+            drawBtn.addEventListener('click', () => {
+                if (maze) {
+                    drawMaze();
+                } else {
+                    console.error('Сначала создайте лабиринт, нажав "Generate Maze"');
+                }
+            });
+            
+            pathBtn.addEventListener('click', () => {
+                if (maze) {
+                    findPath();
+                } else {
+                    console.error('Сначала создайте лабиринт, нажав "Generate Maze"');
+                }
+            });
+            
+            clearBtn.addEventListener('click', clearCanvas);
+            
+            // Инициализация
+            console.log('Тестовая страница для лабиринта загружена');
+            console.log('Нажмите "Generate Maze" для создания нового лабиринта');
+        }
+    </script>
+</body>
+</html> 
