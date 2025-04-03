@@ -1,72 +1,112 @@
-const TelegramBot = require('node-telegram-bot-api');
 const express = require('express');
+const TelegramBot = require('node-telegram-bot-api');
 const fs = require('fs');
 const path = require('path');
+const axios = require('axios');
+
+// Конфигурация
+const BOT_TOKEN = '7686647298:AAGmRnfGceCksKJUu8jk0e1dZOakgkn_V1s';
+const PORT = 3000;
+
+// Создаем Express приложение
 const app = express();
 
-// Bot configuration
-const BOT_TOKEN = '7686647298:AAGmRnfGceCksKJUu8jk0e1dZOakgkn_V1s';
+// Настройка статических файлов
+app.use(express.static(path.join(__dirname)));
 
-// Try to read URL from file if it exists
-let fileUrl = '';
-try {
-  if (fs.existsSync('ngrok-url.txt')) {
-    // Read file and remove all non-printable characters and spaces at the beginning and end
-    fileUrl = fs.readFileSync('ngrok-url.txt', 'utf8')
-      .trim()
-      .replace(/[^\x20-\x7E]/g, ''); // Remove all non-printable ASCII characters
-    
-    console.log(`URL read from file: ${fileUrl}`);
-  }
-} catch (error) {
-  console.error('Error reading URL file:', error);
-}
-
-// Priority: 1) environment variable, 2) URL from file, 3) default URL
-const WEB_APP_URL = process.env.WEB_APP_URL || fileUrl || 'https://your-ngrok-url-here.ngrok-free.app';
-
-// Bot initialization
+// Создаем бота
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 
-// Обслуживание статических файлов из текущей директории
-app.use(express.static(__dirname));
-
-// Добавляем обработчик для корневого маршрута
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
-});
-
-// Добавляем обработчик для всех остальных маршрутов (fallback)
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
-});
-
-// Handle /start command
-bot.onText(/\/start/, async (msg) => {
-    const chatId = msg.chat.id;
-    try {
-        await bot.sendMessage(chatId, 'Hello! Welcome to the "Snail to Riches" game!', {
-            reply_markup: {
-                inline_keyboard: [
-                    [
-                        {
-                            text: "🎮 Play",
-                            web_app: { url: WEB_APP_URL }
-                        }
-                    ]
-                ]
-            }
-        });
-    } catch (error) {
-        console.error('Error sending message:', error);
-        await bot.sendMessage(chatId, 'An error occurred. Please try again later.');
+// Функция для чтения URL из файла
+async function getWebAppUrl() {
+  try {
+    if (fs.existsSync('ngrok-url.txt')) {
+      const url = fs.readFileSync('ngrok-url.txt', 'utf8').trim();
+      console.log('Read URL from file:', url);
+      return url;
     }
+  } catch (error) {
+    console.error('Error reading URL file:', error);
+  }
+  return null;
+}
+
+// Обработка команды /start
+bot.onText(/\/start/, async (msg) => {
+  const chatId = msg.chat.id;
+  const webAppUrl = await getWebAppUrl();
+  
+  if (webAppUrl) {
+    const keyboard = {
+      inline_keyboard: [[
+        {
+          text: '🎮 Играть',
+          web_app: { url: webAppUrl }
+        }
+      ]]
+    };
+    
+    bot.sendMessage(chatId, 'Привет! Готов играть в Snail to Riches?', {
+      reply_markup: keyboard
+    });
+  } else {
+    console.error('Error sending message: No valid Web App URL available');
+    bot.sendMessage(chatId, 'Извините, игра временно недоступна. Попробуйте позже.');
+  }
 });
 
-// Start server
-app.listen(3000, () => {
-    console.log('Bot started and listening on port 3000');
-    console.log(`Using URL for Web App: ${WEB_APP_URL}`);
-    console.log('If you want to use a different URL, run the bot with environment variable:');
-    console.log('WEB_APP_URL=https://your-url.ngrok-free.app npm run bot');
-}); 
+// Запускаем сервер
+console.log('Starting bot...');
+app.listen(PORT, () => {
+  console.log(`Server started on port ${PORT}`);
+});
+
+// Функция для проверки доступности URL
+async function isUrlAccessible(url) {
+  try {
+    const response = await axios.get(url, {
+      validateStatus: function (status) {
+        return status >= 200 && status < 500;
+      }
+    });
+    return response.status === 200;
+  } catch (error) {
+    console.error('Error checking URL:', error.message);
+    return false;
+  }
+}
+
+// Глобальная переменная для хранения текущего URL
+let currentWebAppUrl = null;
+
+// Функция для обновления URL
+async function updateWebAppUrl() {
+  const newUrl = await getWebAppUrl();
+  if (newUrl && newUrl !== currentWebAppUrl) {
+    currentWebAppUrl = newUrl;
+    console.log(`Web App URL updated to: ${currentWebAppUrl}`);
+    return true;
+  }
+  return false;
+}
+
+// Периодическая проверка URL
+const urlCheckInterval = setInterval(async () => {
+  if (!currentWebAppUrl) {
+    await updateWebAppUrl();
+  }
+}, 5000);
+
+// Запускаем процесс получения URL
+(async () => {
+    console.log('Starting bot...');
+    for (let i = 0; i < 5; i++) {
+        if (await updateWebAppUrl()) {
+            console.log('Bot successfully started with URL:', currentWebAppUrl);
+            return;
+        }
+        console.log('Waiting for valid URL...');
+        await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+    console.log('Bot started without initial URL, will keep trying in background');
+})(); 

@@ -1,108 +1,104 @@
 const ngrok = require('ngrok');
 const fs = require('fs');
-const { execSync } = require('child_process');
+const axios = require('axios');
 
-// Функция для очистки URL от всех нежелательных символов
-function cleanUrl(url) {
-  if (!url) return '';
-  
-  // Удаляем все непечатаемые символы и пробелы по краям
-  let cleaned = url.trim()
-    .replace(/[^\x20-\x7E]/g, '') // Удаляем непечатаемые ASCII символы
-    .replace(/%+$/, ''); // Удаляем % в конце URL
-  
-  // Проверяем, что URL правильно сформирован
-  if (!cleaned.startsWith('http')) {
-    console.error('Warning: URL does not start with http');
-    return '';
-  }
-  
-  return cleaned;
-}
-
-// Принудительно останавливаем все процессы ngrok
-function killAllNgrokProcesses() {
+// Функция для проверки доступности URL
+async function isUrlAccessible(url) {
   try {
-    console.log('Killing all ngrok processes...');
-    
-    // Пытаемся остановить через API
-    try {
-      ngrok.kill();
-    } catch (e) {
-      console.log('API kill failed, trying process kill');
-    }
-    
-    // Для macOS и Linux
-    if (process.platform !== 'win32') {
-      try {
-        execSync('pkill -f ngrok');
-        console.log('All ngrok processes killed via pkill');
-      } catch (e) {
-        // Игнорируем ошибку, если процессы не найдены
-      }
-    } 
-    // Для Windows
-    else {
-      try {
-        execSync('taskkill /f /im ngrok.exe');
-        console.log('All ngrok processes killed via taskkill');
-      } catch (e) {
-        // Игнорируем ошибку, если процессы не найдены
-      }
-    }
-    
-    // Ждем немного, чтобы процессы точно завершились
-    return new Promise(resolve => setTimeout(resolve, 3000));
+    console.log('Checking URL:', url);
+    const response = await axios.get(url, {
+      validateStatus: function (status) {
+        return status >= 200 && status < 500;
+      },
+      httpsAgent: new (require('https').Agent)({
+        rejectUnauthorized: false
+      }),
+      timeout: 5000
+    });
+    console.log('URL response status:', response.status);
+    return response.status === 200;
   } catch (error) {
-    console.warn('Error killing ngrok processes:', error.message);
-    // Все равно продолжаем, даже если не смогли убить процессы
-    return Promise.resolve();
+    console.error('Error checking URL:', error.message);
+    return false;
   }
 }
 
-(async function() {
+// Функция для сохранения URL в файл
+async function saveUrlToFile(url) {
   try {
-    // Остановить все процессы ngrok
-    await killAllNgrokProcesses();
+    console.log('Waiting before URL check...');
+    // Ждем 5 секунд перед первой проверкой
+    await new Promise(resolve => setTimeout(resolve, 5000));
     
-    // Небольшая задержка после остановки
+    console.log('Checking URL availability:', url);
+    // Проверяем доступность URL
+    if (await isUrlAccessible(url)) {
+      fs.writeFileSync('ngrok-url.txt', url);
+      console.log(`URL successfully saved to ngrok-url.txt: ${url}`);
+      return true;
+    } else {
+      throw new Error('URL not accessible');
+    }
+  } catch (error) {
+    console.error('Error saving URL:', error.message);
+    return false;
+  }
+}
+
+// Функция для завершения всех процессов ngrok
+async function killAllNgrokProcesses() {
+  console.log('Killing all ngrok processes...');
+  try {
+    await ngrok.kill();
+    // Даем время на завершение процессов
     await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // Запускаем ngrok с вашим токеном на порт 3000
-    console.log('Starting ngrok tunnel on port 3000...');
-    const url = await ngrok.connect({
-      authtoken: '2vB1076Y3cPh8Kif6NVuDIV8eAi_2Vnu9ZFtY3SQSQ4bUQCj1',
-      addr: 3000,
-      onStatusChange: (status) => {
-        console.log('Ngrok status changed:', status);
-      }
-    });
-    
-    // Очищаем URL от возможных проблемных символов
-    const cleanedUrl = cleanUrl(url);
-    
-    if (!cleanedUrl) {
-      throw new Error('Failed to get a valid ngrok URL');
-    }
-    
-    console.log(`Ngrok tunnel started successfully! URL: ${cleanedUrl}`);
-    
-    // Сохраняем URL в файл
-    fs.writeFileSync('ngrok-url.txt', cleanedUrl);
-    console.log('URL saved to ngrok-url.txt');
-    
-    // Проверка: перечитываем URL из файла для подтверждения
-    const savedUrl = fs.readFileSync('ngrok-url.txt', 'utf8').trim();
-    console.log(`Verified saved URL: ${savedUrl}`);
-    
-    process.on('SIGINT', async () => {
-      console.log('Stopping ngrok...');
-      await ngrok.kill();
-      process.exit(0);
-    });
-    
+    console.log('All ngrok processes killed');
   } catch (error) {
-    console.error('Error starting ngrok:', error);
-    process.exit(1);
+    console.error('Error killing ngrok processes:', error.message);
   }
-})(); 
+}
+
+// Основная функция запуска ngrok
+async function startNgrok() {
+  const maxAttempts = 3;
+  
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      await killAllNgrokProcesses();
+      
+      console.log('Starting ngrok tunnel...');
+      const url = await ngrok.connect({
+        addr: 3000,
+        proto: 'http',
+        onStatusChange: status => {
+          console.log('Ngrok status:', status);
+        },
+        authtoken: process.env.NGROK_AUTH_TOKEN || '2vB1076Y3cPh8Kif6NVuDIV8eAi_2Vnu9ZFtY3SQSQ4bUQCj1',
+        configPath: './ngrok.yml'
+      });
+      
+      console.log(`Ngrok tunnel started! URL: ${url}`);
+      
+      if (await saveUrlToFile(url)) {
+        console.log('Ngrok setup completed successfully');
+        return true;
+      }
+      
+      throw new Error('Failed to save URL');
+    } catch (error) {
+      console.error(`Attempt ${attempt} failed: ${error.message}`);
+      
+      if (attempt < maxAttempts) {
+        console.log(`Retrying in 5 seconds... (${maxAttempts - attempt} attempts remaining)`);
+        await new Promise(resolve => setTimeout(resolve, 5000));
+      } else {
+        console.error('Failed to start ngrok after multiple attempts');
+        process.exit(1);
+      }
+    }
+  }
+  return false;
+}
+
+// Запускаем ngrok
+startNgrok(); 

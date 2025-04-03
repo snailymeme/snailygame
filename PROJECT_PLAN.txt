@@ -42,7 +42,7 @@ Develop an HTML5 game presented as a **Telegram Web App**. The player places a b
 ## ⚙️ 3. Game Components
 
 ### Snails (5 base types):
-Each with its own JS behavior module (`js/patches/`), icon (`assets/images/`), and color. Snails move **autonomously**.
+Each with its own JS behavior module (`js/patches/`), icon (`images/`), and color. Snails move **autonomously**.
 
 - **racerSlug** (🔴 `red_snail.png`): Fast, sprint-focused. (`racerSlugPatch.js`)
 - **explorerSlug** (🟢 `green_snail.png`): Smart obstacle avoidance. (`explorerSlugPatch.js`)
@@ -135,8 +135,8 @@ Logic loaded via `patchLoader.js`.
 **Phase 1: Setup and MVP Core**
 
 1.  **Project Initialization:**
-    *   **Action:** Create folder structure (`js/modules`, `js/patches`, `css`, `assets/images`).
-    *   **Cursor:** "Create a basic file and folder structure for a Telegram Web App using HTML/CSS/JS. Include `index.html`, `style.css`, `main.js`, and folders `js/modules`, `js/patches`, `css`, `assets/images`."
+    *   **Action:** Create folder structure (`js/modules`, `js/patches`, `css`, `images`).
+    *   **Cursor:** "Create a basic file and folder structure for a Telegram Web App using HTML/CSS/JS. Include `index.html`, `style.css`, `main.js`, and folders `js/modules`, `js/patches`, `css`, `images`."
     *   **Cursor:** "Add basic HTML markup to `index.html` for a Telegram Web App, including script tags for `telegram-web-app.js`, `style.css`, and `main.js`."
 
 2.  **Telegram Web App Setup & Testing:**

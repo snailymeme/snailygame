@@ -98,7 +98,18 @@ class SlugManager {
                     slug.startMoving();
                     startedCount++;
                 } catch (error) {
-                    console.error(`Ошибка при запуске улитки ${slug?.type || 'unknown'}:`, error);
+                    const errorInfo = {
+                        message: error.message,
+                        stack: error.stack,
+                        type: slug?.type || 'unknown',
+                        position: slug?.position ? `(${slug.position.x}, ${slug.position.y})` : 'unknown',
+                        maze: slug?.maze ? 'available' : 'missing'
+                    };
+                    
+                    console.error(`Ошибка при запуске улитки ${slug?.type || 'unknown'}:`, 
+                                  error.message, 
+                                  '\nДополнительная информация:', 
+                                  JSON.stringify(errorInfo, null, 2));
                 }
             });
             
@@ -110,7 +121,7 @@ class SlugManager {
             
             console.log(`Гонка начата, участвуют ${startedCount} улиток из ${this.slugs.length}`);
         } catch (error) {
-            console.error("Ошибка при запуске гонки:", error);
+            console.error("Ошибка при запуске гонки:", error.message, '\nСтек:', error.stack);
             this.isRaceStarted = false;
         }
     }

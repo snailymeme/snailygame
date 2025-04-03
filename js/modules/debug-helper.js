@@ -169,14 +169,14 @@ function checkAssets() {
     
     try {
         const requiredImages = [
-            'assets/images/red_snail.png',
-            'assets/images/green_snail.png',
-            'assets/images/blue_snail.png',
-            'assets/images/lilac_snail.png',
-            'assets/images/yellow_snail.png',
-            'assets/images/wall_texture.png',
-            'assets/images/start.png',
-            'assets/images/finish.png'
+            'images/snail_red.png',
+            'images/snail_green.png',
+            'images/snail_blue.png',
+            'images/snail_lilac.png',
+            'images/snail_yellow.png',
+            'images/wall_texture.png',
+            'images/start.png',
+            'images/finish.png'
         ];
         
         const missingImages = [];

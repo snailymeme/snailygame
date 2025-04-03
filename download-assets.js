@@ -17,7 +17,7 @@ if (!fs.existsSync(assetsDir)) {
 
 if (!fs.existsSync(imagesDir)) {
     fs.mkdirSync(imagesDir);
-    console.log('✅ Создана директория assets/images/');
+    console.log('✅ Создана директория images/');
 }
 
 // Список необходимых изображений
@@ -108,7 +108,7 @@ async function downloadAllImages() {
     if (failedImages.length > 0) {
         console.log('\n⚠️ Не удалось загрузить следующие изображения:');
         failedImages.forEach(name => console.log(`   - ${name}`));
-        console.log('\nВам нужно будет добавить эти изображения вручную в папку assets/images/');
+        console.log('\nВам нужно будет добавить эти изображения вручную в папку images/');
     } else {
         console.log('\n✅ Все изображения успешно загружены!');
     }

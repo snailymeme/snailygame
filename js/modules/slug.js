@@ -182,16 +182,47 @@ class Slug {
      * Начинает движение улитки
      */
     startMoving() {
-        if (this.isFinished || this.isMoving) return;
-        
-        this.isMoving = true;
-        this.lastUpdateTime = performance.now();
-        this.path = this.generatePath();
-        this.currentPathIndex = 0;
-        this.debugPath = [...this.path]; // Копия для отладки
-        
-        // Метод будет обновлен в каждом кадре анимации
-        this.update();
+        try {
+            if (this.isFinished || this.isMoving) {
+                console.log(`Улитка типа ${this.type} уже движется или финишировала`);
+                return;
+            }
+            
+            if (!this.maze) {
+                throw new Error(`Отсутствует лабиринт для улитки типа ${this.type}`);
+            }
+            
+            console.log(`Запуск улитки типа ${this.type}...`);
+            
+            this.isMoving = true;
+            this.lastUpdateTime = performance.now();
+            
+            // Попытка сгенерировать путь
+            try {
+                this.path = this.generatePath();
+                if (!this.path || !Array.isArray(this.path) || this.path.length === 0) {
+                    console.warn(`Не удалось сгенерировать путь для улитки типа ${this.type}, возвращен ${typeof this.path}`);
+                    // Создаем простой путь из текущей позиции
+                    this.path = [{ ...this.position }];
+                }
+            } catch (pathError) {
+                console.error(`Ошибка при генерации пути для улитки типа ${this.type}:`, pathError);
+                // Создаем простой путь из текущей позиции в случае ошибки
+                this.path = [{ ...this.position }];
+            }
+            
+            this.currentPathIndex = 0;
+            this.debugPath = Array.isArray(this.path) ? [...this.path] : []; // Копия для отладки
+            
+            console.log(`Улитка типа ${this.type} начала движение с позиции (${this.position.x}, ${this.position.y})`);
+            
+            // Запускаем цикл обновления
+            this.update();
+        } catch (error) {
+            this.isMoving = false;
+            console.error(`Критическая ошибка при запуске улитки типа ${this.type}:`, error);
+            throw error; // Перебрасываем ошибку дальше для обработки в SlugManager
+        }
     }
     
     /**
@@ -394,34 +425,25 @@ class Slug {
         // Отрисовываем улитку (изображение или круг с цветом)
         const slugSize = cellSize * this.size;
         
-        if (this.image && this.image.complete) {
-            // Отрисовываем изображение улитки
-            this.ctx.drawImage(
-                this.image,
-                -slugSize / 2,
-                -slugSize / 2,
-                slugSize,
-                slugSize
-            );
+        // Проверяем наличие изображения и его готовность
+        if (this.image && (this.image.complete || this.image.width > 0)) {
+            try {
+                // Отрисовываем изображение улитки
+                this.ctx.drawImage(
+                    this.image,
+                    -slugSize / 2,
+                    -slugSize / 2,
+                    slugSize,
+                    slugSize
+                );
+            } catch (error) {
+                console.warn(`Ошибка отрисовки изображения улитки ${this.type}:`, error);
+                // Если ошибка при отрисовке, рисуем заглушку
+                this.drawFallbackSlug(slugSize);
+            }
         } else {
-            // Отрисовываем простую форму улитки
-            this.ctx.fillStyle = this.color;
-            this.ctx.beginPath();
-            this.ctx.arc(0, 0, slugSize / 2, 0, Math.PI * 2);
-            this.ctx.fill();
-            
-            // Рисуем глаза
-            this.ctx.fillStyle = 'white';
-            this.ctx.beginPath();
-            this.ctx.arc(slugSize / 4, -slugSize / 6, slugSize / 10, 0, Math.PI * 2);
-            this.ctx.arc(slugSize / 4, slugSize / 6, slugSize / 10, 0, Math.PI * 2);
-            this.ctx.fill();
-            
-            this.ctx.fillStyle = 'black';
-            this.ctx.beginPath();
-            this.ctx.arc(slugSize / 4 + slugSize / 20, -slugSize / 6, slugSize / 20, 0, Math.PI * 2);
-            this.ctx.arc(slugSize / 4 + slugSize / 20, slugSize / 6, slugSize / 20, 0, Math.PI * 2);
-            this.ctx.fill();
+            // Отрисовываем заглушку улитки
+            this.drawFallbackSlug(slugSize);
         }
         
         // Восстанавливаем контекст
@@ -451,6 +473,45 @@ class Slug {
             
             this.ctx.restore();
         }
+    }
+    
+    /**
+     * Отрисовывает заглушку улитки, если изображение недоступно
+     * @param {number} size - Размер улитки
+     */
+    drawFallbackSlug(size) {
+        if (!this.ctx) return;
+        
+        // Рисуем тело улитки
+        this.ctx.fillStyle = this.color;
+        this.ctx.beginPath();
+        this.ctx.arc(0, 0, size / 2, 0, Math.PI * 2);
+        this.ctx.fill();
+        
+        // Рисуем глаза
+        this.ctx.fillStyle = 'white';
+        this.ctx.beginPath();
+        this.ctx.arc(size / 4, -size / 6, size / 10, 0, Math.PI * 2);
+        this.ctx.arc(size / 4, size / 6, size / 10, 0, Math.PI * 2);
+        this.ctx.fill();
+        
+        this.ctx.fillStyle = 'black';
+        this.ctx.beginPath();
+        this.ctx.arc(size / 4 + size / 20, -size / 6, size / 20, 0, Math.PI * 2);
+        this.ctx.arc(size / 4 + size / 20, size / 6, size / 20, 0, Math.PI * 2);
+        this.ctx.fill();
+        
+        // Рисуем панцирь
+        this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
+        this.ctx.lineWidth = 2;
+        this.ctx.beginPath();
+        this.ctx.arc(0, 0, size / 3, 0, Math.PI * 2);
+        this.ctx.stroke();
+        
+        // Добавляем спираль на панцире
+        this.ctx.beginPath();
+        this.ctx.arc(0, 0, size / 6, 0, Math.PI * 4);
+        this.ctx.stroke();
     }
     
     /**
@@ -536,21 +597,124 @@ class Slug {
     isInDeadEnd() {
         if (!this.maze) return false;
         
-        const neighbors = this.maze.getNeighbors(this.position.x, this.position.y);
+        const neighbors = this.getValidNeighbors();
+        // Тупик - это точка, из которой можно двигаться только в одном направлении
+        // и это не финишная точка
+        return neighbors.length === 1 && 
+               (this.position.x !== this.finishPosition.x || 
+                this.position.y !== this.finishPosition.y);
+    }
+
+    /**
+     * Получает допустимые соседние ячейки для текущей позиции
+     * @returns {Array} Массив объектов с координатами доступных соседних клеток
+     */
+    getValidNeighbors() {
+        return this.getValidNeighborsAt(this.position.x, this.position.y);
+    }
+    
+    /**
+     * Получает допустимые соседние ячейки для указанной позиции
+     * @param {number} x - Координата X
+     * @param {number} y - Координата Y
+     * @returns {Array} Массив объектов с координатами доступных соседних клеток
+     */
+    getValidNeighborsAt(x, y) {
+        if (!this.maze) return [];
         
-        // Если есть только один сосед и это не финиш, значит мы в тупике
-        if (neighbors.length === 1 && 
-            !(this.position.x === this.finishPosition.x && 
-              this.position.y === this.finishPosition.y)) {
-            return true;
+        const directions = [
+            { dx: 0, dy: -1 }, // верх
+            { dx: 1, dy: 0 },  // право
+            { dx: 0, dy: 1 },  // низ
+            { dx: -1, dy: 0 }  // лево
+        ];
+        
+        const neighbors = [];
+        
+        for (const dir of directions) {
+            const newX = x + dir.dx;
+            const newY = y + dir.dy;
+            
+            if (this.isValidMove(newX, newY)) {
+                neighbors.push({ x: newX, y: newY });
+            }
         }
         
-        // Если вообще нет соседей, это тоже тупик
-        if (neighbors.length === 0) {
-            return true;
+        return neighbors;
+    }
+    
+    /**
+     * Проверяет, является ли ход в указанную ячейку допустимым
+     * @param {number} x - Координата X целевой ячейки
+     * @param {number} y - Координата Y целевой ячейки
+     * @returns {boolean} true если ход допустим, иначе false
+     */
+    isValidMove(x, y) {
+        if (!this.maze) return false;
+        
+        // Проверяем, что координаты в пределах лабиринта
+        if (x < 0 || y < 0 || x >= this.maze.width || y >= this.maze.height) {
+            return false;
         }
         
-        return false;
+        // Проверяем, что между текущей позицией и новой нет стены
+        const currentCell = this.maze.getCell(this.position.x, this.position.y);
+        if (!currentCell) return false;
+        
+        // Проверяем, что целевая клетка является соседней
+        const dx = x - this.position.x;
+        const dy = y - this.position.y;
+        
+        // Разрешены только ходы на 1 клетку по вертикали или горизонтали
+        if (Math.abs(dx) + Math.abs(dy) !== 1) {
+            return false;
+        }
+        
+        // Проверяем стены
+        if (dx === 1 && currentCell.walls.right) return false; // Движение вправо
+        if (dx === -1 && currentCell.walls.left) return false; // Движение влево
+        if (dy === 1 && currentCell.walls.bottom) return false; // Движение вниз
+        if (dy === -1 && currentCell.walls.top) return false; // Движение вверх
+        
+        return true;
+    }
+    
+    /**
+     * Находит путь от текущей позиции до финиша
+     * @returns {Array} Массив точек пути к финишу
+     */
+    findPathToFinish() {
+        return this.findPathFrom(
+            this.position.x, 
+            this.position.y, 
+            this.finishPosition.x, 
+            this.finishPosition.y
+        );
+    }
+    
+    /**
+     * Находит путь между двумя точками
+     * @param {number} startX - Начальная координата X
+     * @param {number} startY - Начальная координата Y
+     * @param {number} endX - Конечная координата X
+     * @param {number} endY - Конечная координата Y
+     * @returns {Array} Массив точек пути
+     */
+    findPathFrom(startX, startY, endX, endY) {
+        if (!this.maze) return [];
+        
+        return this.maze.findPath(
+            { x: startX, y: startY }, 
+            { x: endX, y: endY }
+        );
+    }
+    
+    /**
+     * Обновляет состояние ускорения (turbo boost) для гоночной улитки
+     * @param {number} deltaTime - Время с последнего обновления
+     */
+    updateTurboBoost(deltaTime) {
+        // Будет реализовано в патче для гоночной улитки
     }
 }
 

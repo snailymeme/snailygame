@@ -252,105 +252,168 @@ class MazeGenerator {
     }
 
     /**
-     * Получает список всех соседних ячеек для данной позиции
-     * @param {number} x - Координата X ячейки
-     * @param {number} y - Координата Y ячейки
-     * @returns {Array} Массив объектов с координатами соседних ячеек
+     * Возвращает соседние точки, в которые можно попасть из текущей
+     * @param {number} x - Координата X
+     * @param {number} y - Координата Y
+     * @returns {Array} Массив доступных соседних точек
      */
     getNeighbors(x, y) {
+        try {
+            if (x < 0 || x >= this.width || y < 0 || y >= this.height) {
+                console.warn(`getNeighbors: недопустимые координаты (${x}, ${y})`);
+                return [];
+            }
+            return this._getAccessibleNeighbors(x, y);
+        } catch (error) {
+            console.error('Ошибка в методе getNeighbors:', error);
+            return [];
+        }
+    }
+
+    /**
+     * Находит путь от начальной точки до конечной с использованием алгоритма A*
+     * @param {Object} start - Начальная точка {x, y}
+     * @param {Object} end - Конечная точка {x, y}
+     * @returns {Array} Массив точек, представляющих путь
+     */
+    findPath(start, end) {
+        try {
+            if (!start || !end) {
+                console.error('findPath: не указаны start или end');
+                return [];
+            }
+            
+            // Проверяем, что точки находятся в пределах лабиринта
+            if (start.x < 0 || start.x >= this.width || start.y < 0 || start.y >= this.height ||
+                end.x < 0 || end.x >= this.width || end.y < 0 || end.y >= this.height) {
+                console.error('findPath: start или end вне границ лабиринта');
+                return [];
+            }
+            
+            // Реализация алгоритма A* для поиска кратчайшего пути
+            const openSet = [start];
+            const closedSet = [];
+            const gScore = {}; // Стоимость пути от начала до данной точки
+            const fScore = {}; // Предполагаемая полная стоимость пути
+            const cameFrom = {}; // Для восстановления пути
+            
+            const startKey = `${start.x},${start.y}`;
+            const endKey = `${end.x},${end.y}`;
+            
+            gScore[startKey] = 0;
+            fScore[startKey] = this._heuristic(start, end);
+            
+            while (openSet.length > 0) {
+                // Находим точку с наименьшим fScore
+                let current = openSet[0];
+                let lowestFScore = fScore[`${current.x},${current.y}`];
+                let currentIndex = 0;
+                
+                for (let i = 1; i < openSet.length; i++) {
+                    const key = `${openSet[i].x},${openSet[i].y}`;
+                    if (fScore[key] < lowestFScore) {
+                        lowestFScore = fScore[key];
+                        current = openSet[i];
+                        currentIndex = i;
+                    }
+                }
+                
+                // Если достигли конечной точки, восстанавливаем путь
+                if (current.x === end.x && current.y === end.y) {
+                    const path = [current];
+                    let currentKey = `${current.x},${current.y}`;
+                    
+                    while (cameFrom[currentKey]) {
+                        const prev = cameFrom[currentKey];
+                        path.unshift(prev);
+                        currentKey = `${prev.x},${prev.y}`;
+                    }
+                    
+                    return path;
+                }
+                
+                // Удаляем текущую точку из openSet и добавляем в closedSet
+                openSet.splice(currentIndex, 1);
+                closedSet.push(current);
+                
+                // Получаем соседей текущей точки
+                const neighbors = this._getAccessibleNeighbors(current.x, current.y);
+                
+                for (const neighbor of neighbors) {
+                    const neighborKey = `${neighbor.x},${neighbor.y}`;
+                    
+                    // Если сосед уже в закрытом наборе, пропускаем его
+                    if (closedSet.some(p => p.x === neighbor.x && p.y === neighbor.y)) {
+                        continue;
+                    }
+                    
+                    // Вычисляем новый gScore через текущую точку
+                    const tentativeGScore = (gScore[`${current.x},${current.y}`] || 0) + 1;
+                    
+                    // Если сосед не в открытом наборе или новый путь лучше, обновляем
+                    const inOpenSet = openSet.some(p => p.x === neighbor.x && p.y === neighbor.y);
+                    if (!inOpenSet || tentativeGScore < (gScore[neighborKey] || Infinity)) {
+                        cameFrom[neighborKey] = current;
+                        gScore[neighborKey] = tentativeGScore;
+                        fScore[neighborKey] = tentativeGScore + this._heuristic(neighbor, end);
+                        
+                        if (!inOpenSet) {
+                            openSet.push(neighbor);
+                        }
+                    }
+                }
+            }
+            
+            // Если путь не найден, возвращаем пустой массив
+            console.warn(`findPath: путь от (${start.x},${start.y}) до (${end.x},${end.y}) не найден`);
+            return [];
+        } catch (error) {
+            console.error('Ошибка в методе findPath:', error);
+            return [];
+        }
+    }
+    
+    /**
+     * Возвращает соседние точки, в которые можно попасть из текущей
+     * @param {number} x - Координата X
+     * @param {number} y - Координата Y
+     * @returns {Array} Массив доступных соседних точек
+     * @private
+     */
+    _getAccessibleNeighbors(x, y) {
         const neighbors = [];
         const cell = this.grid[y][x];
         
-        // Верхний сосед
+        // Проверяем все направления
         if (!cell.walls.top && y > 0) {
             neighbors.push({ x, y: y - 1 });
         }
         
-        // Правый сосед
         if (!cell.walls.right && x < this.width - 1) {
             neighbors.push({ x: x + 1, y });
         }
         
-        // Нижний сосед
         if (!cell.walls.bottom && y < this.height - 1) {
             neighbors.push({ x, y: y + 1 });
         }
         
-        // Левый сосед
         if (!cell.walls.left && x > 0) {
             neighbors.push({ x: x - 1, y });
         }
         
         return neighbors;
     }
-
+    
     /**
-     * Находит кратчайший путь из начальной точки в конечную используя алгоритм BFS
-     * @param {Object} start - Начальная точка {x, y}
-     * @param {Object} finish - Конечная точка {x, y}
-     * @returns {Array} Массив координат точек, составляющих путь
-     */
-    findPath(start, finish) {
-        // Очередь для BFS
-        const queue = [start];
-        
-        // Посещенные ячейки
-        const visited = {};
-        const key = pos => `${pos.x},${pos.y}`;
-        visited[key(start)] = true;
-        
-        // Информация для восстановления пути
-        const cameFrom = {};
-        
-        while (queue.length > 0) {
-            const current = queue.shift();
-            
-            // Достигли цели
-            if (current.x === finish.x && current.y === finish.y) {
-                return this._reconstructPath(cameFrom, start, finish);
-            }
-            
-            // Проверяем всех соседей
-            const neighbors = this.getNeighbors(current.x, current.y);
-            for (const neighbor of neighbors) {
-                const neighborKey = key(neighbor);
-                
-                // Если соседа еще не посещали
-                if (!visited[neighborKey]) {
-                    visited[neighborKey] = true;
-                    cameFrom[neighborKey] = current;
-                    queue.push(neighbor);
-                }
-            }
-        }
-        
-        // Если путь не найден
-        return [];
-    }
-
-    /**
-     * Восстанавливает путь от финиша к старту
-     * @param {Object} cameFrom - Карта, показывающая откуда пришли в каждую ячейку
-     * @param {Object} start - Начальная точка
-     * @param {Object} finish - Конечная точка
-     * @returns {Array} Массив координат точек, составляющих путь
+     * Эвристическая функция для оценки расстояния между точками
+     * @param {Object} a - Первая точка
+     * @param {Object} b - Вторая точка
+     * @returns {number} Оценка расстояния
      * @private
      */
-    _reconstructPath(cameFrom, start, finish) {
-        const path = [];
-        let current = finish;
-        const key = pos => `${pos.x},${pos.y}`;
-        
-        // Добавляем финиш в путь
-        path.push(current);
-        
-        // Идем по пути в обратном направлении до старта
-        while (!(current.x === start.x && current.y === start.y)) {
-            current = cameFrom[key(current)];
-            path.unshift(current);
-        }
-        
-        return path;
+    _heuristic(a, b) {
+        // Используем манхэттенское расстояние
+        return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
     }
 
     /**
@@ -387,14 +450,16 @@ class Maze {
      * Создает новый лабиринт
      * @param {number} width - Ширина лабиринта в ячейках
      * @param {number} height - Высота лабиринта в ячейках
+     * @param {Object} style - Визуальный стиль лабиринта (опционально)
      */
-    constructor(width, height) {
+    constructor(width, height, style = null) {
         this.width = width;
         this.height = height;
         this.generator = new MazeGenerator(width, height);
         this.grid = [];
         this.startPoint = { x: 0, y: 0 };
         this.finishPoint = { x: width - 1, y: height - 1 };
+        this.style = style; // Стиль оформления лабиринта
     }
 
     /**
@@ -407,16 +472,124 @@ class Maze {
         this.grid = maze.grid;
         this.startPoint = maze.startPoint;
         this.finishPoint = maze.finishPoint;
+        
+        // Если не задан стиль, и доступны глобальные стили - выберем случайный
+        if (!this.style && typeof getRandomMazeStyle === 'function') {
+            try {
+                this.style = getRandomMazeStyle();
+                console.log(`Применен стиль лабиринта: ${this.style.name}`);
+            } catch (error) {
+                console.warn('Ошибка при выборе случайного стиля лабиринта:', error);
+            }
+        }
+        
         console.log('Лабиринт успешно сгенерирован');
         return this;
     }
 
     /**
-     * Находит путь от старта до финиша
+     * Устанавливает визуальный стиль лабиринта
+     * @param {Object} style - Объект стиля
+     * @returns {Maze} Возвращает текущий экземпляр для цепочки вызовов
+     */
+    setStyle(style) {
+        this.style = style;
+        return this;
+    }
+
+    /**
+     * Получает цвет для пути с учетом текущего стиля
+     * @returns {string} Цвет для пути
+     */
+    getPathColor() {
+        return this.style && this.style.path ? this.style.path.color : '#FFFFFF';
+    }
+
+    /**
+     * Получает цвет для стены с учетом текущего стиля
+     * @returns {string} Цвет для стены
+     */
+    getWallColor() {
+        return this.style && this.style.wall ? this.style.wall.color : '#333333';
+    }
+
+    /**
+     * Проверяет, есть ли у стиля определенный эффект
+     * @param {string} elementType - Тип элемента (path или wall)
+     * @param {string} effectName - Имя эффекта
+     * @returns {boolean} Есть ли указанный эффект
+     */
+    hasEffect(elementType, effectName) {
+        return this.style && 
+               this.style[elementType] && 
+               this.style[elementType].effect === effectName;
+    }
+
+    /**
+     * Находит путь от указанной начальной точки до указанной конечной точки
+     * @param {Object} start - Начальная точка {x, y}
+     * @param {Object} end - Конечная точка {x, y}
      * @returns {Array} Массив точек пути
      */
-    findPath() {
-        return this.generator.findPath(this.startPoint, this.finishPoint);
+    findPath(start, end) {
+        return this.generator.findPath(start || this.startPoint, end || this.finishPoint);
+    }
+
+    /**
+     * Получает ячейку лабиринта по координатам
+     * @param {number} row - Координата строки (y)
+     * @param {number} col - Координата столбца (x)
+     * @returns {Object|null} Ячейка лабиринта или null, если координаты некорректны
+     */
+    getCell(row, col) {
+        // Проверяем, что координаты в пределах лабиринта
+        if (row < 0 || col < 0 || row >= this.height || col >= this.width) {
+            console.warn(`getCell: некорректные координаты (${row}, ${col})`);
+            return null;
+        }
+        
+        // Проверяем, есть ли grid и правильного ли он размера
+        if (!this.grid || !this.grid[row]) {
+            console.warn(`getCell: сетка не определена или неполная`);
+            return null;
+        }
+        
+        return this.grid[row][col];
+    }
+
+    /**
+     * Получает соседние ячейки для указанной позиции
+     * @param {number} x - Координата X
+     * @param {number} y - Координата Y
+     * @returns {Array} Массив соседних ячеек, куда можно пройти
+     */
+    getNeighbors(x, y) {
+        if (x < 0 || y < 0 || x >= this.width || y >= this.height) {
+            console.warn(`getNeighbors: некорректные координаты (${x}, ${y})`);
+            return [];
+        }
+        
+        const cell = this.grid[y][x];
+        const neighbors = [];
+        
+        // Проверяем каждое направление
+        if (!cell.walls.top && y > 0) {
+            neighbors.push({ x, y: y - 1 });
+        }
+        
+        if (!cell.walls.right && x < this.width - 1) {
+            neighbors.push({ x: x + 1, y });
+        }
+        
+        if (!cell.walls.bottom && y < this.height - 1) {
+            neighbors.push({ x, y: y + 1 });
+        }
+        
+        if (!cell.walls.left && x > 0) {
+            neighbors.push({ x: x - 1, y });
+        }
+        
+        return neighbors;
     }
 
     /**

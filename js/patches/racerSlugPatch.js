@@ -82,14 +82,16 @@ class RacerSlug {
                 this.pauseTimer = this.suddenStopDuration;
                 console.log(`Гонщик ${this.colorName} внезапно останавливается на ${this.suddenStopDuration/1000} сек`);
                 
-                // Анимация остановки
-                this.scene.tweens.add({
-                    targets: this.sprite,
-                    scaleY: 0.8,
-                    scaleX: 1.2,
-                    duration: 200,
-                    yoyo: true,
-                    repeat: 2
+                // Анимация остановки с проверкой доступности tweens
+                this.safeTweens(tweens => {
+                    tweens.add({
+                        targets: this.sprite,
+                        scaleY: 0.8,
+                        scaleX: 1.2,
+                        duration: 200,
+                        yoyo: true,
+                        repeat: 2
+                    });
                 });
                 
                 // В случае остановки не меняем текущий путь
@@ -151,21 +153,30 @@ class RacerSlug {
                 const originalSpeed = this.speed;
                 this.speed = this.speed * 1.3;
                 
-                // Более динамичная анимация старта
-                this.scene.tweens.add({
-                    targets: this.sprite,
-                    scaleX: 1.3,
-                    scaleY: 0.7,
-                    duration: 250,
-                    yoyo: true,
-                    onComplete: () => {
-                        // Возвращаем скорость к нормальной через 2 секунды
-                        this.scene.time.delayedCall(2000, () => {
-                            this.speed = originalSpeed;
-                        });
-                        
-                        this.moveToNextPoint();
-                    }
+                // Более динамичная анимация старта с проверкой доступности tweens
+                this.safeTweens(tweens => {
+                    tweens.add({
+                        targets: this.sprite,
+                        scaleX: 1.3,
+                        scaleY: 0.7,
+                        duration: 250,
+                        yoyo: true,
+                        onComplete: () => {
+                            // Возвращаем скорость к нормальной через 2 секунды
+                            if (this.scene && this.scene.time) {
+                                this.scene.time.delayedCall(2000, () => {
+                                    this.speed = originalSpeed;
+                                });
+                            } else {
+                                // Запасной вариант, если scene.time недоступен
+                                setTimeout(() => {
+                                    this.speed = originalSpeed;
+                                }, 2000);
+                            }
+                            
+                            this.moveToNextPoint();
+                        }
+                    });
                 });
                 
                 console.log(`Гонщик ${this.colorName} делает стремительный старт!`);
